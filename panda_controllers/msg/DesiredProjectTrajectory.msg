@@ -1,0 +1,9 @@
+std_msgs/Header header
+geometry_msgs/Pose pose
+geometry_msgs/Pose velocity
+geometry_msgs/Pose acceleration
+float64[8] pose_d
+float64[8] dpose_d
+float64[8] ddpose_d
+float64[3] position_d
+int32 phase

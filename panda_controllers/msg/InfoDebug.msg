@@ -1,0 +1,9 @@
+std_msgs/Header header
+float64[3] pos_error
+float64[7] tau_task
+float64[7] tau_d
+float64[7] tau_null
+float64[3] norma
+float64[3] pos_curr
+float64[3] position_c
+float64[6] wrench_ext

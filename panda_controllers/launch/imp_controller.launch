@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<launch>
+    <!-- Panda params -->
+    <arg name="robot_ip" default="192.168.3.2"/>
+    <arg name="load_gripper" default="false"/>
+
+    <!-- Controller name -->
+    <arg name="controller" default="impedance_control_dq"/>
+    
+    <!-- Franka control node -->
+    <include file="$(find panda_controllers)/launch/panda_controller.launch" >
+        <arg name="robot_ip" value="$(arg robot_ip)" />
+        <arg name="load_gripper" value="$(arg load_gripper)" />
+        <arg name="controller_name" value="$(arg controller)" />
+    </include>
+
+<!-- <rosparam command="load" file="$(find panda_controllers)/config/panda_controllers.yaml" />
+    <node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find panda_controllers)/config/visual_rviz.rviz"/> -->
+    
+    <!-- Bags record path -->
+    <!-- <arg name="record_path" default="/home/panda_adm/rac/DATA_RECORDED"/> 
+    <arg name="record_topics" default="/motion_control_dq/info_debug
+        //motion_control_dq/dq_trajectory" />  -->
+
+</launch>
+

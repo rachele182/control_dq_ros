@@ -1,0 +1,46 @@
+
+motion_control_dq:
+    type: panda_controllers/MotionControlDq
+    arm_id: panda
+    joint_names:
+        - panda_joint1
+        - panda_joint2
+        - panda_joint3
+        - panda_joint4
+        - panda_joint5
+        - panda_joint6
+        - panda_joint7
+    var_damp: true 
+
+impedance_control_dq:
+    type: panda_controllers/ImpedanceControlDq
+    arm_id: panda
+    joint_names:
+        - panda_joint1
+        - panda_joint2
+        - panda_joint3
+        - panda_joint4
+        - panda_joint5
+        - panda_joint6
+        - panda_joint7
+    var_damp: true 
+
+
+
+traj_par: 
+   N_ACTION : 10
+   ACTIONS :
+
+       - [3.0, 0.50, 0.27, 0.29]       
+       - [5.0, 0.58, 0.05, 0.430]      
+       - [3.0, 0.58, 0.05, 0.60]       
+       - [5.0, 0.70, 0.14, 0.60]        
+       - [2.0, 0.70, 0.14, 0.600]       
+       - [5.0, 0.53, 0.28, 0.450]       
+       - [5.0, 0.68, 0.11, 0.460]       
+       - [5.0, 0.54, 0.26, 0.460]       
+       - [5.0, 0.68, 0.13, 0.100]       
+       - [5.0, 0.56, 0.27, 0.290]   
+#    TYPE :            
+
+#first column is tf, then position of end-effector, for now orientation is fixed

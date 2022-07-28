@@ -1,0 +1,23 @@
+<library path="lib/libpanda_controllers">
+   <class name="panda_controllers/MotionControlDq" type="panda_controllers::MotionControlDq" base_class_type="controller_interface::ControllerBase">
+      <description>
+      Motion controller.
+      </description>
+   </class>
+</library>
+
+<library path="lib/libpanda_controllers">
+   <class name="panda_controllers/ImpedanceControlDq" type="panda_controllers::ImpedanceControlDq" base_class_type="controller_interface::ControllerBase">
+      <description>  
+      Impedance controller.
+      </description>
+   </class>
+</library>
+
+<!-- <library path="lib/libpanda_controllers">
+   <class name="panda_controllers/ImpedanceControlDqLog" type="panda_controllers::ImpedanceControlDqLog" base_class_type="controller_interface::ControllerBase">
+      <description>  
+      Impedance controller with DQ log.
+      </description>
+   </class>
+</library> -->
