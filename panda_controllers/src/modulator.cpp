@@ -27,7 +27,7 @@
 #define     K_OR        300                         // [Nm/rad]     rot stiffness
 #define     D_OR        2*sqrt(K_OR*1.5)            // [N*s/rad]    rot damping
 #define     K_DEFAULT   100                         // [Nm]         default value translation stiffness
-#define     D_DEFAULT   4*sqrt(K_DEFAULT*1.5)       // [N*s/m]      default value translation stiffness
+#define     D_DEFAULT   2*sqrt(K_DEFAULT*1.5)       // [N*s/m]      default value translation stiffness
 #define     MASS        1.5                         // [kg]         apparent mass
 #define     DZ_VALUE      6   
 
@@ -123,7 +123,7 @@ return wrench_n;
 
 // -----Compute impedance gains modulation----- // 
 
-double compute_k(double ki,int phase, double f_ext,double pos,double e_pos, double F_max, double F_int_max,ros::Time t_curr,ros::Time time_prec){
+Vector2d compute_gains(double ki,int phase, double f_ext,double pos,double e_pos, double F_max, double F_int_max,ros::Time t_curr,ros::Time time_prec){
 
     //Parameters
     double k_min, k_max, mass, beta, a0, csi,safe_tr,z_int; 
@@ -133,25 +133,32 @@ double compute_k(double ki,int phase, double f_ext,double pos,double e_pos, doub
     beta = 0.98;
     a0 = 0.95;
     csi = 1; 
-    z_int = 0.15; 
+    z_int = 0.17; 
     
     //variables
+    Vector2d gains; 
     double k;
+    double d; 
     double k_temp; 
     double int_pos; 
 
     if(phase==0){
+        d = 8*sqrt(ki*mass); 
         if(std::abs(f_ext) > F_max){
             ki = 0.995*ki; // decrease k arbitrarly
+            d = 8*sqrt(ki*mass); 
             if(ki < k_min){
                 ki = k_min;
+                d = 8*sqrt(ki*mass); 
                     }
             if(ki*std::abs(e_pos) > F_int_max){
                 k_temp = (F_int_max)/(std::abs(e_pos));
                 if(k_temp<ki){
                     ki = k_temp;
+                    d = 8*sqrt(ki*mass); 
                     if(k_temp < k_min){
                         ki = k_min;
+                        d = 8*sqrt(ki*mass); 
                     }
                 }     
          }
@@ -163,22 +170,18 @@ double compute_k(double ki,int phase, double f_ext,double pos,double e_pos, doub
                 k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
                 k_temp = ki + k_dot*interval; 
                 ki = k_temp;  
+                d = 2*sqrt(ki*mass); 
                 if(k_temp>k_max){
                     ki = k_max;
+                    d = 2*sqrt(ki*mass); 
                 }
             }
         }
         k = ki; 
-    return k; 
+        gains << k,d; 
+    return gains; 
     }
 
-
-
-double compute_d(double k, double mass){
-    double d;
-    d = 4*sqrt(mass*k);
-return d; 
-}
 
 int main(int argc, char **argv)
 {
@@ -203,7 +206,7 @@ int main(int argc, char **argv)
   ros::Subscriber sub_pose =  node_imp.subscribe("/motion_control_dq/franka_ee_pose", 1, 
                                                 &poseCallback);
 
-  ros::Rate loop_rate(100);
+  ros::Rate loop_rate(200);
 
   panda_controllers::DesiredImpedance imp_msg;
 
@@ -214,6 +217,9 @@ int main(int argc, char **argv)
   double int_pos; 
   pose_nom << 1,0,0,0,0,0,0,0;
   int ph; 
+  Vector2d gains_x; 
+  Vector2d gains_y;
+  Vector2d gains_z;
   double kx,ky,kz,dx,dy,dz; 
   double K[36];            // stiffness matrix 6x6
   double D[36];            // damping matrix 6x6 
@@ -308,13 +314,13 @@ int main(int argc, char **argv)
         t_curr = ros::Time::now();
 
         ph = phase; 
-        // kx = compute_k(kx,ph,wrench_n(0),position(0),e_pos(0),F_MAX,F_INT_MAX,t_curr,time_prec);
-        // ky = compute_k(ky,ph,wrench_n(1),position(1),e_pos(1),F_MAX,F_INT_MAX,t_curr,time_prec);
-        kz = compute_k(kz,ph,wrench_n(2),position(2),e_pos(2),F_MAX,F_INT_MAX,t_curr,time_prec);
         
-        dx = compute_d(kx,MASS);
-        dy = compute_d(ky,MASS);
-        dz = compute_d(kz,MASS);
+        gains_x = compute_gains(kx,ph,wrench_n(0),position(0),e_pos(0),F_MAX,F_INT_MAX,t_curr,time_prec);
+        gains_y = compute_gains(kz,ph,wrench_n(1),position(1),e_pos(1),F_MAX,F_INT_MAX,t_curr,time_prec);
+        gains_z = compute_gains(kz,ph,wrench_n(2),position(2),e_pos(2),F_MAX,F_INT_MAX,t_curr,time_prec);
+
+        kz = gains_z(0);
+        dz = gains_z(1);
 
         time_prec = t_curr; 
 

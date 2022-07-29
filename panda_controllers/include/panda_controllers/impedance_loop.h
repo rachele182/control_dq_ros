@@ -86,6 +86,9 @@ class impedance_loop{
         Matrix<double, 6, 6> MD;              // virtual mass
         Vector6d wrench_ext;                 // Estimated External Wrench 6x1
 		Vector6d wrench_n;                   // new external wrench
+        double fx;
+        double fy;
+        double fz; 
         double fx_prec;
         double fy_prec;
         double fz_prec;

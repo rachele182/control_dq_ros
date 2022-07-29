@@ -3,15 +3,16 @@
 
 
 #define     MASS          1.5                         // [kg]         apparent mass
-#define     K_DEFAULT     100                         // [Nm]         default stiffness
-#define     D_DEFAULT     4*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default damping
-#define     K_ROT         300               
+#define     K_DEFAULT     300                         // [Nm]         default stiffness
+#define     D_DEFAULT     8*sqrt(K_DEFAULT*MASS);  // [Ns/m]       default damping
+// #define     D_DEFAULT     150;                        // [Ns/m]       default damping
+#define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
-#define     K_INIT        300                         // [Nm]         default translational stiffness
+#define     K_INIT        200                         // [Nm]         default translational stiffness
 #define     D_INIT        2*sqrt(K_DEFAULT*MASS);     // [Ns/m]        default translational damping
-#define     DZ_VALUE      6                           // dead zone value ext forces (?)       
-#define     SAMPLE_TIME   0.01                        // s                 
-#define     CUT_OFF_FREQ  100
+#define     DZ_VALUE      5                           // dead zone value ext forces (?)       
+#define     SAMPLE_TIME   0.005                       // s                 
+#define     CUT_OFF_FREQ  1                           // Hz
 
 using namespace DQ_robotics;  
 using namespace panda_controllers; 
@@ -127,7 +128,7 @@ bool impedance_loop::init(ros::NodeHandle& node_handle){
 	  name_space = name_space.substr(0,n);
 
     sub_des_traj_proj_ = node_handle.subscribe(
-      "/motion_control_dq/dq_trajectory", 10, &impedance_loop::desiredProjectTrajectoryCallback, this,
+      "/motion_control_dq/dq_trajectory", 1, &impedance_loop::desiredProjectTrajectoryCallback, this,
       ros::TransportHints().reliable().tcpNoDelay());
   
     sub_ext_forces = node_handle.subscribe(
@@ -135,7 +136,7 @@ bool impedance_loop::init(ros::NodeHandle& node_handle){
       ros::TransportHints().reliable().tcpNoDelay());
 
     sub_ee_pose = node_handle.subscribe(
-      "/motion_control_dq/franka_ee_pose", 10, &impedance_loop::ee_pose_Callback, this,
+      "/motion_control_dq/franka_ee_pose", 1, &impedance_loop::ee_pose_Callback, this,
       ros::TransportHints().reliable().tcpNoDelay());
 
     sub_des_imp_proj_ =  node_handle.subscribe(  "/motion_control_dq/desired_impedance", 1, 
@@ -150,7 +151,10 @@ bool impedance_loop::init(ros::NodeHandle& node_handle){
     time_prec = ros::Time::now().toSec();     // previous cyle time 
     t = ros::Time::now().toSec();             // current ros time
     wrench_ext.setZero();                     // external wrench on EE
-    wrench_n = wrench_ext; 
+    wrench_n = wrench_ext;  
+    fx = 0;
+    fy = 0;
+    fz = 0; 
     fx_prec = 0;
     fy_prec = 0;
     fz_prec = 0; 
@@ -190,7 +194,7 @@ void impedance_loop::update(){
    Vector3d position_c;
    Vector8d pose_nom;
    Vector8d dpose_nom;
-   double fx,fy,fz; //current external forces
+   double fx_fil,fy_fil,fz_fil; //current external forces
    pose_nom << 1,0,0,0,0,0,0,0;
    dpose_nom << 0,0,0,0,0,0,0; 
   
@@ -224,22 +228,22 @@ void impedance_loop::update(){
    MD =I6*MASS;
   
   //lowpass filter for ext forces
+  fx_prec = fx; 
+  fy_prec = fy;
+  fz_prec = fz; 
+
   fx = wrench_ext(0);
   fy = wrench_ext(1);
   fz = wrench_ext(2); 
-  // fx = lowpassFilter(SAMPLE_TIME, wrench_ext(0),fx_prec,CUT_OFF_FREQ); 
-  // fy = lowpassFilter(SAMPLE_TIME, wrench_ext(1),fy_prec,CUT_OFF_FREQ); 
-  // fz = lowpassFilter(SAMPLE_TIME, wrench_ext(2),fz_prec,CUT_OFF_FREQ); 
 
-  // fx_prec = fx;
-  // fy_prec = fy;
-  // fz_prec = fz;
- 
-  wrench_n << fx,fy,fz,wrench_ext(3),wrench_ext(4),wrench_ext(5); 
+  fx_fil = lowpassFilter(SAMPLE_TIME,fx,fx_prec,CUT_OFF_FREQ); 
+  fy_fil = lowpassFilter(SAMPLE_TIME,fy,fy_prec,CUT_OFF_FREQ); 
+  fz_fil = lowpassFilter(SAMPLE_TIME,fz,fz_prec,CUT_OFF_FREQ); 
+
+  wrench_n << fx_fil,fy_fil,fz_fil,wrench_ext(3),wrench_ext(4),wrench_ext(5); 
 
   //Dead zone for estimated external force
   wrench_n = dead_zone(wrench_n,DZ_VALUE);
-
 
   // External wrench w.r.t compliant frame
 
@@ -267,24 +271,6 @@ void impedance_loop::update(){
 
   position_c = vec3(DQ(comp.x_c).translation()); 
 
-  // debug, clean later
-  MatrixXd Q8;
-  MatrixXd Q4_dot;
-  MatrixXd Q8_dot;
-  DQ pose_nom_dq;
-  DQ dpose_nom_dq;
-  DQ rot;
-  DQ drot; 
-  pose_nom_dq = DQ(pose_nom);
-  dpose_nom_dq = DQ(dpose_nom);
-
-  Q8 = getQ8(pose_nom_dq);
-  Q8_dot = getQ8_dot(pose_nom_dq,dpose_nom_dq);
-
-
-  std::cout << "Q8" << Q8 << std::endl;
-  std::cout << "Q8_dot" << Q8_dot << std::endl;
-  std::cout << "Q4_dot" << Q4_dot << std::endl;
   
  
   // //---------------PUBLISHING----------------//
@@ -305,14 +291,14 @@ void impedance_loop::update(){
     compliant_traj_msg.position_c[1] = position_c(1); 
     compliant_traj_msg.position_c[2] = position_c(2); 
 
-    compliant_traj_msg.f_filtered[0] = fx;
-    compliant_traj_msg.f_filtered[1] = fy;
-    compliant_traj_msg.f_filtered[2] = fz;
+    compliant_traj_msg.f_filtered[0] = fx_fil;
+    compliant_traj_msg.f_filtered[1] = fy_fil;
+    compliant_traj_msg.f_filtered[2] = fz_fil;
 
     if(pose_d_!= pose_nom){
        pub_compliant_traj.publish(compliant_traj_msg);
     }
-   
+
    count = count++;
 }
 
@@ -339,7 +325,7 @@ void impedance_loop::f_ext_Callback(const panda_controllers::InfoDebugConstPtr& 
 
 //----------- DESIRED IMPEDANCE -------------//
 void impedance_loop::desiredImpedanceProjectCallback(
-  		const panda_controllers::DesiredImpedanceConstPtr& msg){
+     		const panda_controllers::DesiredImpedanceConstPtr& msg){
 
 	for (int i=0; i<6; i++){
 		for (int j=0; j<6; j++){
@@ -519,7 +505,7 @@ int main(int argc, char **argv){
 
     ros::NodeHandle node_impedance;
 
-    ros::Rate loop_rate(1000); // outer loop frequency Hz
+    ros::Rate loop_rate(200); // outer loop frequency Hz
     
     impedance_loop impedance;
 

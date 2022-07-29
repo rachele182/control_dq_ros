@@ -26,11 +26,11 @@ using DQ_robotics::C8;
 using namespace DQ_robotics;
 
 #define     MASS            1.5                         // [kg]         apparent mass
-#define     K_INIT          100                         // [Nm]         initial stiffness
-#define     D_INIT          8*sqrt(K_DEFAULT*MASS);     // [Ns/m]       initial damping
-#define     K_DEFAULT       100                         // [Nm]         default translational stiffness
-#define     D_DEFAULT       8*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default translational damping
-#define     K_ROT           300                         // [N*rad]      defaul rotational stiffness
+#define     K_INIT          300                         // [Nm]         initial stiffness
+#define     D_INIT          2*sqrt(K_DEFAULT*MASS);     // [Ns/m]       initial damping
+#define     K_DEFAULT       300                         // [Nm]         default translational stiffness
+#define     D_DEFAULT       2*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default translational damping
+#define     K_ROT           500                         // [N*rad]      defaul rotational stiffness
 #define     D_ROT           2*sqrt(K_ROT*MASS);         // [Ns/rad]     defaul rotational damping
 #define     DZ_VALUE        6    // dead zone values for external forces    
 #define 	D_JOINTS	    2    // dissipative term joints
@@ -169,8 +169,8 @@ bool ImpedanceControlDq::init( hardware_interface::RobotHW* robot_hw,
 	I6 = MatrixXd::Identity(6, 6);
 	I7 = MatrixXd::Identity(7, 7);
 	I8 = MatrixXd::Identity(8, 8);
-	pose_.setZero();								// current EE pose
-	dpose_.setZero();                               // current EE velocity
+	Q8 = MatrixXd::Identity(8, 6); 
+	Q8_dot = MatrixXd::Zero(8, 6); 
 	pose_d_.setZero();                  	      	// desired pose
 	dpose_d_.setZero();                          	// desired velocity
 	ddpose_d_.setZero();                        	// desired acceleration
@@ -268,10 +268,7 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Vector3d pos;                     // current EE position 3x1
 	DQ pose_dq;                       // DQ current pose 
 	DQ pose_d_dq;                     // DQ desired pose
-	Matrix <double,8,6> Q8;           // partial derivative log mapping dx = Q8*dy
-	Matrix <double,8,6> Q8_dot;   
-	Q8 = MatrixXd::Zero(8, 6); 
-	Q8_dot = MatrixXd::Zero(8, 6); 
+
 
    //===================== | IMPEDANCE VALUES | =================== //
 
@@ -409,7 +406,7 @@ DQ_SerialManipulator robot = init_dq_robot();
 	//---------------- CONTROL COMPUTATION (FB LIN)-----------------//
 	
 	tau_task << coriolis + mass*ad;  // +g (already compensated)
-	// std::cout << tau_task << std::endl;
+	std::cout << tau_task << std::endl;
 
 	//---------------- NULLSPACE CONTROL COMPUTATION -----------------//
     
@@ -552,15 +549,7 @@ void ImpedanceControlDq::admittance_eq(Vector6d flog,Vector6d y_hat,Vector6d dy_
  	return tau_d_saturated;
  }
 
- //--------------------------------------------------------------------------------------------------
-// ----------------------------------GET Q, partial derivatives of DQ log-----------------------  //
 
-
-//--------------------------------------------------------------------------------------------------
-// ----------------------------------GET Q, partial derivatives of DQ log-----------------------  //
-
-
-//--------------------------------------------------------------------------------------------------
 // ----------------------------------GET Q, partial derivatives of DQ log-----------------------  //
 
 
@@ -685,7 +674,7 @@ MatrixXd ImpedanceControlDq::getQ4_dot(DQ_robotics::DQ &rot,DQ_robotics::DQ &dro
     Q4_dot(2,2)  = gamma*ny*dnz + gamma*nz*dny + ny*nz*dgamma;
     Q4_dot(3,0)  = gamma*dnz*nx + gamma*nz*dnx + nx*nz*dgamma;
     Q4_dot(3,1)  = gamma*nx*dnz + gamma*nz*dny + ny*nz*dgamma;
-    Q4_dot(3,2)  = gamma*pow(nz,2)+dtheta + 2*gamma*nz*dnz;
+    Q4_dot(3,2)  = gamma*pow(nz,2)+ dtheta + 2*gamma*nz*dnz;
 
 return Q4_dot;
 }

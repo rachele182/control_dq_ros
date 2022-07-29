@@ -121,30 +121,77 @@ int demo_int_traj (Vector3d pos_i, double time) {
   int phase; 
   phase = 0; 
   // z_int = 0.035; 
-  z_int = 0.13; 
+  z_int = 0.14; 
   Vector3d pos_f;
-  if(time>=0 && time<10){
+  if(time>=0 && time<20){
     tmp << pos_i; 
     pos_f << pos_i(0), pos_i(1), z_int; 
-    t_f = 10; 
+    t_f = 20; 
     t = time;
-  }else if (time>=10 && time<12){
+  }else if (time>=20 && time<21){
     tmp << pos_i(0), pos_i(1), z_int; 
     pos_f << tmp;
-    t_f = 2; 
-    t = time - 10; 
-  }else if (time>=12 && time<22){
+    t_f = 1; 
+    t = time - 20; 
+  }else if (time>=21 && time<31){
     tmp << pos_i(0), pos_i(1), z_int; 
-    pos_f << pos_i(0), pos_i(1), 0.2; 
+    pos_f << pos_i(0), pos_i(1), 0.3; 
     t_f = 10;
-    t = time - 12; 
+    t = time - 21; 
     phase = 1; 
   }else {
-    tmp << pos_i(0), pos_i(1), 0.2; 
+    tmp << pos_i(0), pos_i(1), 0.3; 
     pos_f << tmp;
     t_f = 1000; 
-    t = time - 22;  
+    t = time - 31;  
     phase = 1; 
+  }
+   traj_t.p_des << tmp + (tmp - pos_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
+   traj_t.v_des << (tmp - pos_f)*(60*(pow(t,3)/pow(t_f,4)) - 30*(pow(t,4)/pow(t_f,5)) -30*(pow(t,2)/pow(t_f,3)));
+   traj_t.a_des << (tmp - pos_f)*(180*(pow(t,2)/pow(t_f,4)) - 120*(pow(t,3)/pow(t_f,5)) -60*(t/pow(t_f,3)));
+
+  return phase; 
+}
+
+Vector3d demo_int_traj_2 (Vector3d pos_i, double time) {
+  Vector3d tmp;
+  double t_f;
+  double t;  
+  double z_int;
+  Vector3d phase; 
+  phase.setZero();  
+  z_int = 0.14; 
+  Vector3d pos_f;
+
+  if(time>=0 && time<15){ //go down 
+    tmp << pos_i; 
+    pos_f << pos_i(0), pos_i(1), z_int+0.05; 
+    t_f = 15; 
+    t = time;
+  }else if (time>=15 && time<20){ //start interaction phase
+    tmp << pos_i(0), pos_i(1), z_int+0.05; 
+    pos_f <<  pos_i(0), pos_i(1), z_int; 
+    t_f = 5; 
+    t = time - 15; 
+    phase(2) = 1; 
+  }else if (time>=20 && time<21){ //pause
+    tmp << pos_i(0), pos_i(1), z_int; 
+    pos_f << tmp; 
+    t_f = 1;
+    t = time - 20; 
+    phase(2) = 1; 
+  }else if (time>=21 && time<31){ //go up
+    tmp << pos_i(0), pos_i(1), z_int; 
+    pos_f << pos_i(0), pos_i(1), 0.3;
+    t_f = 10;
+    t = time - 21; 
+    phase(2) = 1; 
+  }else {
+    tmp << pos_i(0), pos_i(1), 0.3; 
+    pos_f << tmp;
+    t_f = 1000; 
+    t = time - 31;  
+    phase(2) = 2; 
   }
    traj_t.p_des << tmp + (tmp - pos_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
    traj_t.v_des << (tmp - pos_f)*(60*(pow(t,3)/pow(t_f,4)) - 30*(pow(t,4)/pow(t_f,5)) -30*(pow(t,2)/pow(t_f,3)));
@@ -221,6 +268,7 @@ int main(int argc, char **argv)
   double t = 0;
   int choice;
   int ph; 
+  Vector3d phase; 
   int demo = -1;
   int ext = -1;
   double dt = 0.1;
@@ -240,10 +288,10 @@ int main(int argc, char **argv)
       cin>>tf;
 
     }else if (choice == 2){
-      cout<<"select demo:  (1: infinite XY , 2: infinite XYZ , 3: circle_xy , 4:int_traj"<<endl;
+      cout<<"select demo:  (1: infinite XY , 2: infinite XYZ , 3: circle_xy , 4:int_traj, 5_int_traj_2"<<endl;
       cin>>demo;
-      if(demo ==4){
-         tf = 30; 
+      if(demo ==4 || demo ==5){
+         tf = 40; 
          cout<<"int traj loaded: "<<endl;
       }else{
         cout<<"insert time_f: "<<endl;
@@ -293,6 +341,8 @@ int main(int argc, char **argv)
           demo_circle_xy(pos_init,t,zf,tf);
           }else if (demo==4){
           ph = demo_int_traj(pos_init,t);
+          }else if (demo==5){
+          phase = demo_int_traj_2(pos_init,t);  
           }
 
           pos_des << traj_t.p_des;
@@ -353,6 +403,12 @@ int main(int argc, char **argv)
 
       if(demo==4){
          traj_msg.phase = ph; 
+      }
+
+      if(demo==5){
+         traj_msg.phase_array[0] = phase(0); 
+         traj_msg.phase_array[1] = phase(1); 
+         traj_msg.phase_array[2] = phase(2); 
       }
      
  

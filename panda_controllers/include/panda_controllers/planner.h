@@ -84,7 +84,7 @@ class planner_node{
 
         // external forces
         ros::Subscriber sub_ext_forces;
-        void f_ext_Callback(const geometry_msgs::WrenchStampedConstPtr& msg);
+        void f_ext_Callback(const panda_controllers::InfoDebugConstPtr& msg); 
 
         //-----publishers-----//
         ros::Publisher pub_impedance;

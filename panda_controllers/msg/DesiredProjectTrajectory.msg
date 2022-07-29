@@ -7,3 +7,4 @@ float64[8] dpose_d
 float64[8] ddpose_d
 float64[3] position_d
 int32 phase
+float64[3] phase_array

@@ -120,6 +120,8 @@ class ImpedanceControlDq : public controller_interface::MultiInterfaceController
 		Matrix<double, 7, 7> I7;
         Matrix<double, 6, 6> I6;
 		Matrix<double, 8, 8> I8;
+		Matrix <double,8,6> Q8;           // partial derivative log mapping dx = Q8*dy
+		Matrix <double,8,6> Q8_dot;   
 		
 	    
 		//----------SUBSCRIBERS----------//

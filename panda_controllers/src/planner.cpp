@@ -10,7 +10,7 @@
 
 #define     F_MAX         6.0         // [N]          disturbance threshold
 #define     E_MAX         0.02        // [m]          maximum tollerated error 
-#define     F_INT_MAX     10.0         // [N]          maximum tollerated force in interaction
+#define     F_INT_MAX     12.0        // [N]         maximum tollerated force in interaction
 #define     K_MIN         30.0        // [N/m]        minimum value for stiffness
 #define     K_MAX         1000.0      // [N/m]        maximum value for stiffness
 #define     MASS          1.0         // [kg]         virtual mass (inertia shaping)
@@ -19,7 +19,6 @@
 #define     CSI           1.0         // []           critically damped system
 #define     K_OR          500         // [Nm/rad]     orientation stiffness
 #define     D_OR          2*sqrt(500) // [Nm*sec/rad] orientation damping
-#define     K_INIT        200         // [Nm]         default value
 #define     K_INIT_X      300         // [Nm]         default value x
 #define     K_INIT_Y      300         // [Nm]         default value y
 #define     K_INIT_Z      300         // [Nm]         default value z
@@ -397,10 +396,10 @@ void planner_node::desiredProjectTrajectoryCallback(const panda_controllers::Des
     compensation << msg->compensation[0], msg->compensation[1], msg->compensation[2];
 }
 
-void planner_node::f_ext_Callback(const geometry_msgs::WrenchStampedConstPtr& msg){
-  F_ext << msg->wrench.force.x, msg->wrench.force.y, msg->wrench.force.z;
-}
 
+void planner_node::f_ext_Callback(const panda_controllers::InfoDebugConstPtr& msg){
+  F_ext << msg->wrench_ext[0], msg->wrench_ext[1],msg->wrench_ext[2];
+}
 
 
 //==========================================================================================//
