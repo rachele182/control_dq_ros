@@ -14,10 +14,10 @@
    </class>
 </library>
 
-<!-- <library path="lib/libpanda_controllers">
-   <class name="panda_controllers/ImpedanceControlDqLog" type="panda_controllers::ImpedanceControlDqLog" base_class_type="controller_interface::ControllerBase">
+<library path="lib/libpanda_controllers">
+   <class name="panda_controllers/DualArmControl" type="panda_controllers::DualArmControl" base_class_type="controller_interface::ControllerBase">
       <description>  
-      Impedance controller with DQ log.
+      Dualm Arm controller.
       </description>
    </class>
-</library> -->
+</library>

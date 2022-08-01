@@ -185,7 +185,7 @@ Vector3d demo_int_traj_2 (Vector3d pos_i, double time) {
     pos_f << pos_i(0), pos_i(1), 0.3;
     t_f = 10;
     t = time - 21; 
-    phase(2) = 1; 
+    phase(2) = 2; 
   }else {
     tmp << pos_i(0), pos_i(1), 0.3; 
     pos_f << tmp;

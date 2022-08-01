@@ -211,19 +211,19 @@ void impedance_loop::update(){
    x_dq = x_dq.normalize();
 
    //Impedance matrices 
-   KD(0,0)= K_ROT;
-	 KD(1,1)= K_ROT;
-	 KD(2,2)= K_ROT;
-	 KD(3,3)= K_DEFAULT;
-	 KD(4,4)= K_DEFAULT;
-	 KD(5,5)= K_DEFAULT;
+  //  KD(0,0)= K_ROT;
+	//  KD(1,1)= K_ROT;
+	//  KD(2,2)= K_ROT;
+	//  KD(3,3)= K_DEFAULT;
+	//  KD(4,4)= K_DEFAULT;
+	//  KD(5,5)= K_DEFAULT;
  
-	 BD(0,0)= D_ROT;
-	 BD(1,1)= D_ROT;
-	 BD(2,2)= D_ROT;
-	 BD(3,3)= D_DEFAULT;
-	 BD(4,4)= D_DEFAULT;
-	 BD(5,5)= D_DEFAULT;
+	//  BD(0,0)= D_ROT;
+	//  BD(1,1)= D_ROT;
+	//  BD(2,2)= D_ROT;
+	//  BD(3,3)= D_DEFAULT;
+	//  BD(4,4)= D_DEFAULT;
+	//  BD(5,5)= D_DEFAULT;
 
    MD =I6*MASS;
   
