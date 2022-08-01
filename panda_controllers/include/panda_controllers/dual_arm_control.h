@@ -1,0 +1,196 @@
+#pragma once
+
+#include <memory>
+#include <string>
+#include <vector>
+// ROS
+#include <ros/ros.h>
+#include <ros/node_handle.h>
+#include <ros/time.h>
+// DQ TOOLBOX
+#include "dqrobotics/DQ.h"
+#include <dqrobotics/utils/DQ_Constants.h>
+#include <dqrobotics/robot_modeling/DQ_Kinematics.h>
+#include <dqrobotics/robot_modeling/DQ_SerialManipulator.h>
+#include <dqrobotics/robot_modeling/DQ_CooperativeDualTaskSpace.h>
+// FRANKA ROS
+#include <controller_interface/multi_interface_controller.h>
+#include <franka_hw/franka_model_interface.h>
+#include <franka_hw/franka_state_interface.h>
+#include <franka_hw/trigger_rate.h>
+#include <geometry_msgs/WrenchStamped.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
+#include <hardware_interface/joint_command_interface.h>
+#include <hardware_interface/robot_hw.h>
+#include <realtime_tools/realtime_publisher.h>
+// FRANKA MSGS
+#include <franka_msgs/SetFullCollisionBehavior.h>
+#include <franka_msgs/SetJointImpedance.h>
+// ROS MSGS
+#include <panda_controllers/DesiredProjectTrajectory.h>
+#include <panda_controllers/CompliantTraj.h>
+#include <panda_controllers/EEpose.h>
+#include <panda_controllers/InfoDebug.h>
+#include <panda_controllers/RobotState.h>
+
+#include "std_msgs/Float64MultiArray.h"
+#include "std_msgs/Float64.h"
+
+typedef Matrix<double, 6, 1> Vector6d;
+typedef Matrix<double, 4, 1> Vector4d;
+typedef Matrix<double, 7, 1> Vector7d;
+typedef Matrix<double, 8, 1> Vector8d;
+typedef Matrix<double, 16, 1> Vector16d;
+typedef Matrix<double, 14, 1> Vector14d;
+
+using namespace DQ_robotics;
+using DQ_robotics::DQ;
+using DQ_robotics::DQ_Kinematics;
+using DQ_robotics::DQ_SerialManipulator;
+using DQ_robotics::DQ_CooperativeDualTaskSpace;
+
+namespace panda_controllers {
+
+struct FrankaDataContainer {
+	std::unique_ptr<franka_hw::FrankaStateHandle>
+      	state_handle_;  ///< To read to complete robot state.
+  	std::unique_ptr<franka_hw::FrankaModelHandle>
+        model_handle_;  ///< To have access to e.g. jacobians.
+  	std::vector<hardware_interface::JointHandle> 
+		joint_handles_;  ///< To command joint torques.
+	Vector3d position_d_;
+	Quaterniond orientation_d_; 
+	const double delta_tau_max_{1.0}; 
+};
+
+class DualArmControl : public controller_interface::MultiInterfaceController<
+                                                franka_hw::FrankaModelInterface,
+                                                hardware_interface::EffortJointInterface,
+                                                franka_hw::FrankaStateInterface> {
+ 	public:
+	    /**
+		* Initializes the controller class to be ready to run.
+   		*
+   		* @param[in] robot_hw Pointer to a RobotHW class to get interfaces and resource handles.
+   		* @param[in] node_handle Nodehandle that allows getting parameterizations from the server and
+   		* starting subscribers.
+   		* @return True if the controller was initialized successfully, false otherwise.
+   		*/
+		bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& node_handle) override;
+		void starting(const ros::Time&) override;
+			/**
+   		* Computes the control-law and commands the resulting joint torques to the robot.
+   		*
+   		* @param[in] period The control period (here 0.001s).
+   		*/
+		void update(const ros::Time&, const ros::Duration& period) override;
+		franka_msgs::SetFullCollisionBehavior collBehaviourSrvMsg;
+		ros::ServiceClient collBehaviourClient;
+		franka_msgs::SetJointImpedance jointImpedanceSrvMsg;
+		ros::ServiceClient jointImpedanceClient;		
+ 	private:
+		std::map<std::string, FrankaDataContainer>
+     		 arms_data_;             ///< Holds all relevant data for both arms.
+  		std::string left_arm_id_;   ///< Name of the left arm, retrieved from the parameter server.
+  		std::string right_arm_id_;  ///< Name of the right arm, retrieved from the parameter server.
+		
+		//----------FRANKA ---------// 
+
+		 /**
+   		* Saturates torque commands to ensure feasibility.
+   		*
+   		* @param[in] arm_data The data container of the arm.
+   		* @param[in] tau_d_calculated The raw command according to the control law.
+   		* @param[in] tau_J_d The current desired torque, read from the robot state.
+   		* @return The saturated torque command for the 7 joints of one arm.
+   		*/
+  		Eigen::Matrix<double, 7, 1> saturateTorqueRate(
+      			const FrankaDataContainer& arm_data,
+      			const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
+      			const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
+
+		// GET DQ Robots
+        DQ_SerialManipulator init_dq_robot(double r_B_O_[3],double B_Q_O_[4]); // DQ panda representation
+		// ------DQ dual Panda representation---//
+  		DQ_CooperativeDualTaskSpace init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2);
+        //Utils
+		bool var_damp; 
+		std::string name_space;    
+		/**
+   		* Initializes a single Panda robot arm.
+   		
+   		* @param[in] robot_hw A pointer the RobotHW class for getting interfaces and resource handles.
+   		* @param[in] arm_id The name of the panda arm.
+   		* @param[in] joint_names The names of all joints of the panda.
+   		* @return True if successful, false otherwise.
+   		*/
+  		bool initArm(hardware_interface::RobotHW* robot_hw,
+   		            const std::string& arm_id,
+   		            const std::vector<std::string>& joint_names);
+	
+   		/**
+   		* Computes the decoupled controller update for a single arm.
+   		*
+   		* @param[in] arm_data The data container of the arm to control.
+   		*/                                            
+
+
+		//----------VARIABLES----------//
+		Matrix<double, 7, 1> tau_limit;                    // joint torque limits vector [Nm], from datasheet https://frankaemika.github.io/docs/control_parameters.html
+		const double delta_tau_max_{1.0};                  // torque rate limit [Nm/ms], from datasheet https://frankaemika.github.io/docs/control_parameters.html
+		Vector6d wrench_ext_l;                             // external wrench left arm
+		Vector6d wrench_ext_r;  						   // external wrench right arm
+		DQ p_curr_dq; 								       // current position
+		DQ or_curr_dq;                                     // current orientation     
+		Vector14d q_in;                                    //Initial augmented joint configuration      
+		Matrix<double, 7, 1> ql;                           // joint positions left arm
+		Matrix<double, 7, 1> dql;                          // joint velocities left arm
+		Matrix<double, 7, 1> qr;                           // joint positions right arm
+		Matrix<double, 7, 1> dqr;                          // joint velocities right arm
+		Matrix<double, 14, 1> q;                           // augmented joint angless vector
+		Matrix<double, 14, 1> dq;                          // augmented joint velocities vector
+		Matrix<double, 3, 1> pos_in_l_;                    // initial position left EE
+		Quaterniond orientation_l_;                        // initial orientation left EE 
+		Matrix<double, 3, 1> pos_in_r_;                    // initial position right EE
+		Quaterniond orientation_r_;                        // initial orientation right EE 
+		Vector4d or_d_l;  
+		Vector4d or_d_r;
+		Vector8d rel_pose_in_;                             // initial relative pose
+		Vector8d abs_pose_in_;                             // initial absolute pose
+		Matrix<double, 8, 1> pose_r_d_;                    // desired relative pose
+		Matrix<double, 8, 1> dpose_r_d_;                   // desired relative velocity
+		Matrix<double, 8, 1> ddpose_r_d_;                  // desired relative acceleration 
+		Matrix<double, 8, 1> pose_a_d_;                    // desired absolute pose
+		Matrix<double, 8, 1> dpose_a_d_;                   // desired absolute velocity
+		Matrix<double, 8, 1> ddpose_a_d_;                  // desired absolute acceleration 
+		Matrix<double, 7, 1> q_nullspace_;                 // qdes null-space 
+		
+        Matrix<double, 8, 8> I8;                           
+		Matrix<double, 7, 7> I7;
+		Matrix<double, 16, 16> I16;
+	    
+		
+		//----------SUBSCRIBERS----------//
+		// ros::Subscriber sub_des_traj_proj_;
+		// void CompliantTrajCallback(const panda_controllers::CompliantTraj::ConstPtr& msg);
+
+		// //----------SUBSCRIBERS----------//
+		ros::Subscriber sub_nom_traj_proj_;
+		void desiredProjectTrajectoryCallback(const panda_controllers::DesiredProjectTrajectoryConstPtr& msg);
+
+
+		// //----------PUBLISHERS----------//
+		// ros::Publisher pub_pos_error;
+		// ros::Publisher pub_endeffector_pose_;
+		// ros::Publisher pub_ee_pose_;
+		ros::Publisher pub_robot_state_;
+		// ros::Publisher pub_info_debug;
+		
+        // //----------MESSAGES----------/7
+		// panda_controllers::EEpose ee_pos_msg;
+		// panda_controllers::InfoDebug info_debug_msg;	
+		panda_controllers::RobotState robot_state_msg;
+};
+
+}  // namespace franka_softbots
