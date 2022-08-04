@@ -1,10 +1,18 @@
 std_msgs/Header header
-geometry_msgs/Pose pose
-geometry_msgs/Pose velocity
-geometry_msgs/Pose acceleration
+# geometry_msgs/Pose pose
+# geometry_msgs/Pose velocity
+# geometry_msgs/Pose acceleration
+int32 phase
+float64[3] phase_array
 float64[8] pose_d
 float64[8] dpose_d
 float64[8] ddpose_d
 float64[3] position_d
-int32 phase
-float64[3] phase_array
+#For dual arm
+float64[8] pose_r
+float64[8] dpose_r
+float64[8] ddpose_r
+float64[3] position_r
+float64[3] position_1
+float64[3] position_2
+

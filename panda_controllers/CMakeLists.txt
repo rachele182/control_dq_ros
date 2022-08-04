@@ -13,6 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   franka_msgs 
   hardware_interface
+  tf
+  tf_conversions
   message_generation
   pluginlib
   realtime_tools
@@ -56,6 +58,8 @@ catkin_package(
     geometry_msgs
     franka_msgs##
     hardware_interface
+    tf
+    tf_conversions
     message_runtime
     pluginlib
     realtime_tools

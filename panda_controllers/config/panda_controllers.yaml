@@ -47,7 +47,7 @@ dual_arm_control:
             - panda_2_joint5
             - panda_2_joint6
             - panda_2_joint7
-     var_damp: true 
+    var_damp: true 
 
 
 

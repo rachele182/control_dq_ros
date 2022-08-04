@@ -7,3 +7,20 @@ float64[3] norma
 float64[3] pos_curr
 float64[3] position_c
 float64[6] wrench_ext
+# Info for dual-arm control
+float64[7] tau_left
+float64[7] tau_right
+float64[6] wrench_ext_1
+float64[6] wrench_ext_2
+float64[3] rel_pos #relative position
+float64[3] abs_pos #absolute position
+float64[3] er #relative position error
+float64[3] ea #absolute position error
+float64[8] rel_pose #relative pose
+float64[8] abs_pose #absolute pose
+float64[8] x1 #arm1 pose
+float64[8] x2 #arm2 pose
+float64 abs_norm 
+float64 rel_norm
+
+

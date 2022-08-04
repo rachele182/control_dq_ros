@@ -18,6 +18,7 @@
 #include <franka_hw/franka_model_interface.h>
 #include <franka_hw/franka_state_interface.h>
 #include <franka_hw/trigger_rate.h>
+#include <dynamic_reconfigure/server.h>
 #include <geometry_msgs/WrenchStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
@@ -25,6 +26,7 @@
 #include <hardware_interface/robot_hw.h>
 #include <realtime_tools/realtime_publisher.h>
 // FRANKA MSGS
+#include <eigen_conversions/eigen_msg.h>
 #include <franka_msgs/SetFullCollisionBehavior.h>
 #include <franka_msgs/SetJointImpedance.h>
 // ROS MSGS
@@ -95,6 +97,22 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
   		std::string left_arm_id_;   ///< Name of the left arm, retrieved from the parameter server.
   		std::string right_arm_id_;  ///< Name of the right arm, retrieved from the parameter server.
 		
+		// -----------------//
+
+		///< Transformation between base frames of the robots.
+  		Eigen::Affine3d Ol_T_Or_;  // NOLINT (readability-identifier-naming)
+  		///< Target transformation between the two endeffectors.
+  		Eigen::Affine3d EEr_T_EEl_;  // NOLINT (readability-identifier-naming)
+  		///< Transformation from the centering frame to the left end effector.
+  		Eigen::Affine3d EEl_T_C_{};
+
+  		///< Publisher for the centering tracking frame of the coordinated motion.
+  		realtime_tools::RealtimePublisher<geometry_msgs::PoseStamped> center_frame_pub_;
+  		///< Rate to trigger publishing the current pose of the centering frame.
+  		franka_hw::TriggerRate publish_rate_;
+
+		// ----------------- //
+
 		//----------FRANKA ---------// 
 
 		 /**
@@ -111,7 +129,7 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
       			const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
 
 		// GET DQ Robots
-        DQ_SerialManipulator init_dq_robot(double r_B_O_[3],double B_Q_O_[4]); // DQ panda representation
+        DQ_SerialManipulator init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O,double EE_offset); // DQ panda representation
 		// ------DQ dual Panda representation---//
   		DQ_CooperativeDualTaskSpace init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2);
         //Utils
@@ -135,7 +153,6 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
    		* @param[in] arm_data The data container of the arm to control.
    		*/                                            
 
-
 		//----------VARIABLES----------//
 		Matrix<double, 7, 1> tau_limit;                    // joint torque limits vector [Nm], from datasheet https://frankaemika.github.io/docs/control_parameters.html
 		const double delta_tau_max_{1.0};                  // torque rate limit [Nm/ms], from datasheet https://frankaemika.github.io/docs/control_parameters.html
@@ -150,10 +167,12 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		Matrix<double, 7, 1> dqr;                          // joint velocities right arm
 		Matrix<double, 14, 1> q;                           // augmented joint angless vector
 		Matrix<double, 14, 1> dq;                          // augmented joint velocities vector
-		Matrix<double, 3, 1> pos_in_l_;                    // initial position left EE
-		Quaterniond orientation_l_;                        // initial orientation left EE 
-		Matrix<double, 3, 1> pos_in_r_;                    // initial position right EE
-		Quaterniond orientation_r_;                        // initial orientation right EE 
+		Matrix<double, 3, 1> pos_l_;                       // position left EE
+		Vector4d rot_l_;                                   // orientation left EE 
+		Matrix<double, 3, 1> pos_r_;                       // position right EE
+		Vector4d rot_r_;                                   // orientation right EE 
+		DQ x1_dq;                                          // left arm pose DQ
+		DQ x2_dq;										   // right arm pose DQ
 		Vector4d or_d_l;  
 		Vector4d or_d_r;
 		Vector8d rel_pose_in_;                             // initial relative pose
@@ -175,21 +194,20 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		// ros::Subscriber sub_des_traj_proj_;
 		// void CompliantTrajCallback(const panda_controllers::CompliantTraj::ConstPtr& msg);
 
-		// //----------SUBSCRIBERS----------//
+		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_nom_traj_proj_;
 		void desiredProjectTrajectoryCallback(const panda_controllers::DesiredProjectTrajectoryConstPtr& msg);
 
 
 		// //----------PUBLISHERS----------//
-		// ros::Publisher pub_pos_error;
-		// ros::Publisher pub_endeffector_pose_;
-		// ros::Publisher pub_ee_pose_;
+		ros::Publisher pub_EE1_pose_;
+		ros::Publisher pub_EE2_pose_;
 		ros::Publisher pub_robot_state_;
-		// ros::Publisher pub_info_debug;
-		
-        // //----------MESSAGES----------/7
-		// panda_controllers::EEpose ee_pos_msg;
-		// panda_controllers::InfoDebug info_debug_msg;	
+		ros::Publisher pub_info_debug;
+		void publishCenteringPose();
+
+        // //----------MESSAGES----------//
+		panda_controllers::InfoDebug info_debug_msg;	
 		panda_controllers::RobotState robot_state_msg;
 };
 
