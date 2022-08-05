@@ -191,8 +191,8 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 	    
 		
 		//----------SUBSCRIBERS----------//
-		// ros::Subscriber sub_des_traj_proj_;
-		// void CompliantTrajCallback(const panda_controllers::CompliantTraj::ConstPtr& msg);
+		ros::Subscriber sub_compl_traj_proj_;
+		void CompliantTrajCallback(const panda_controllers::CompliantTraj::ConstPtr& msg);
 
 		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_nom_traj_proj_;

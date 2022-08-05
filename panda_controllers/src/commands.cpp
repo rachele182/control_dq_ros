@@ -286,22 +286,22 @@ void dual_traj (Vector3d pos_in_1, Vector3d pos_in_2, double time) {
   }else if (time>=7 && time<12){ //come closer
     tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)-0.1; 
     tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)-0.1; 
-    pos_1_f << pos_in_1(0), pos_in_1(1)-0.1, pos_in_1(2)-0.1; 
-    pos_2_f << pos_in_2(0), pos_in_2(1)+ 0.1, pos_in_2(2)-0.1;
+    pos_1_f << pos_in_1(0), pos_in_1(1)-0.15, pos_in_1(2)-0.1; 
+    pos_2_f << pos_in_2(0), pos_in_2(1)+ 0.15, pos_in_2(2)-0.1;
     t_f = 5;
     t = time - 7; 
   }else if (time>=12 && time<14){ //pause
-    tmp1 << pos_in_1(0), pos_in_1(1)-0.1, pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1)+0.1, pos_in_2(2)-0.1; 
+    tmp1 << pos_in_1(0), pos_in_1(1)-0.15, pos_in_1(2)-0.1; 
+    tmp2 << pos_in_2(0), pos_in_2(1)+0.15, pos_in_2(2)-0.1; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     t_f = 2;
     t = time - 12; 
   }else if (time>=14 && time<19){ //go back again
-    tmp1 << pos_in_1(0), pos_in_1(1)-0.1, pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1)+0.1, pos_in_2(2)-0.1;
-    pos_1_f << tmp1(0), tmp1(1)+0.1, tmp1(2); 
-    pos_2_f << tmp2(0), tmp2(1)-0.1, tmp2(2);
+    tmp1 << pos_in_1(0), pos_in_1(1)-0.15, pos_in_1(2)-0.1; 
+    tmp2 << pos_in_2(0), pos_in_2(1)+0.15, pos_in_2(2)-0.1;
+    pos_1_f << tmp1(0), tmp1(1)+0.15, tmp1(2); 
+    pos_2_f << tmp2(0), tmp2(1)-0.15, tmp2(2);
     t_f = 5;
     t = time - 14; 
   }else if (time>=19 && time<24){ //go up again
@@ -582,8 +582,8 @@ int main(int argc, char **argv)
           x2_des << traj_dual_dq.x2_des;  dx1_des << traj_dual_dq.dx2_des; ddx2_des << traj_dual_dq.ddx2_des;  
           //update to compute derivative
           if(count==0){
-            xa_des << pose_abs; 
-            dxa_des.setZero(); 
+            xa_des << pose_abs_in; 
+            dxa_des << 0,0,0,0,0,0,0,0; 
           }else{
             xa_des << traj_dual_dq.xa_des;
             dxa_des << traj_dual_dq.dxa_des; 

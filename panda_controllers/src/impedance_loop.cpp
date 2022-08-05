@@ -4,8 +4,8 @@
 
 #define     MASS          1.5                         // [kg]         apparent mass
 #define     K_DEFAULT     300                         // [Nm]         default stiffness
-#define     D_DEFAULT     8*sqrt(K_DEFAULT*MASS);  // [Ns/m]       default damping
-// #define     D_DEFAULT     150;                        // [Ns/m]       default damping
+#define     D_DEFAULT     8*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default damping
+// #define     D_DEFAULT     150;                     // [Ns/m]       default damping
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
 #define     K_INIT        200                         // [Nm]         default translational stiffness

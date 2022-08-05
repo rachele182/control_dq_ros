@@ -130,6 +130,10 @@ add_executable(modulator_2
 add_executable(impedance_loop
   src/impedance_loop.cpp
 ) 
+#dual-arm impedance loop
+add_executable(dual_impedance_loop
+  src/dual_impedance_loop.cpp
+) 
 
 target_link_libraries(commands PUBLIC
   ${Franka_LIBRARIES}
@@ -156,6 +160,12 @@ target_link_libraries(modulator_2 PUBLIC
 # )
 
 target_link_libraries(impedance_loop PUBLIC
+  ${Franka_LIBRARIES}
+  ${catkin_LIBRARIES}
+  dqrobotics
+)
+
+target_link_libraries(dual_impedance_loop PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
   dqrobotics

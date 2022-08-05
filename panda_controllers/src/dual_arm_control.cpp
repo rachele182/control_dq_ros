@@ -32,9 +32,11 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    200  // proportional gain motion controller
-#define 	KD			    40   // derivative gain motion controller
-#define 	KP_ABS			80  // proportional gain motion controller
+// #define 	KP			    200  // proportional gain motion controller (case of fixed relative)
+// #define 	KD			    40   // derivative gain motion controller
+#define 	KP			    120  // proportional gain motion controller
+#define 	KD			    30   // derivative gain motion controller
+#define 	KP_ABS			100  // proportional gain motion controller
 #define 	KD_ABS			20   // derivative gain motion controller
 #define     KI              50   // integrative term 
 #define 	D_JOINTS	    2    // dissipative term joints
@@ -152,9 +154,9 @@ bool DualArmControl::init( hardware_interface::RobotHW* robot_hw,
 
 	//--------------- INITIALIZE SUBSCRIBERS AND PUBLISHERS -----------------//
 
-	// sub_des_traj_proj_ =  node_handle.subscribe(  "/motion_control_dq/compliant_traj", 1, 
-	// 												&DualArmControl::CompliantTrajCallback, this,
-	// 												ros::TransportHints().reliable().tcpNoDelay());
+	sub_compl_traj_proj_ =  node_handle.subscribe(  "/motion_control_dq/compliant_traj", 1, 
+													&DualArmControl::CompliantTrajCallback, this,
+													ros::TransportHints().reliable().tcpNoDelay());
 
     sub_nom_traj_proj_ =  node_handle.subscribe(  "/motion_control_dq/dq_trajectory", 1, 
 													&DualArmControl::desiredProjectTrajectoryCallback, this,
@@ -734,22 +736,22 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
 void DualArmControl::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
   
-	pose_a_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
-	dpose_a_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
-	ddpose_a_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
+	// pose_a_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
+	// dpose_a_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
+	// ddpose_a_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
 	pose_r_d_ << msg->pose_r[0], msg->pose_r[1], msg->pose_r[2],msg->pose_r[3],msg->pose_r[4],msg->pose_r[5],msg->pose_r[6],msg->pose_r[7];		
 	dpose_r_d_ << msg->dpose_r[0], msg->dpose_r[1], msg->dpose_r[2],msg->dpose_r[3],msg->dpose_r[4],msg->dpose_r[5],msg->dpose_r[6],msg->dpose_r[7];	
 	ddpose_r_d_ << msg->ddpose_r[0], msg->ddpose_r[1], msg->ddpose_r[2],msg->ddpose_r[3],msg->ddpose_r[4],msg->ddpose_r[5],msg->ddpose_r[6],msg->ddpose_r[7];	
  } 
 
-// // //----------- DESIRED COMPLIANT TRAJECTORY -------------//
-// void DualArmControl::CompliantTrajCallback(
-//     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
+// //----------- DESIRED COMPLIANT TRAJECTORY -------------//
+void DualArmControl::CompliantTrajCallback(
+    	const panda_controllers::CompliantTraj::ConstPtr& msg) {
   
-// 	pose_d_ << msg->pose_c[0], msg->pose_c[1], msg->pose_c[2],msg->pose_c[3],msg->pose_c[4],msg->pose_c[5],msg->pose_c[6],msg->pose_c[7];		
-// 	dpose_d_ << msg->dpose_c[0], msg->dpose_c[1], msg->dpose_c[2],msg->dpose_c[3],msg->dpose_c[4],msg->dpose_c[5],msg->dpose_c[6],msg->dpose_c[7];	
-// 	ddpose_d_ << msg->ddpose_c[0], msg->ddpose_c[1], msg->ddpose_c[2],msg->ddpose_c[3],msg->ddpose_c[4],msg->ddpose_c[5],msg->ddpose_c[6],msg->ddpose_c[7];	
-//  } 
+	pose_a_d_ << msg->pose_abs_c[0], msg->pose_abs_c[1], msg->pose_abs_c[2],msg->pose_abs_c[3],msg->pose_abs_c[4],msg->pose_abs_c[5],msg->pose_abs_c[6],msg->pose_abs_c[7];		
+	dpose_a_d_ << msg->dpose_abs_c[0], msg->dpose_abs_c[1], msg->dpose_abs_c[2],msg->dpose_abs_c[3],msg->dpose_abs_c[4],msg->dpose_abs_c[5],msg->dpose_abs_c[6],msg->dpose_abs_c[7];	
+	ddpose_a_d_ << msg->ddpose_abs_c[0], msg->ddpose_abs_c[1], msg->ddpose_abs_c[2],msg->ddpose_abs_c[3],msg->ddpose_abs_c[4],msg->ddpose_abs_c[5],msg->ddpose_abs_c[6],msg->ddpose_abs_c[7];	
+ } 
 										  
 
 }  // end namespace franka_softbots
