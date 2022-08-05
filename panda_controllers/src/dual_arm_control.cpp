@@ -688,6 +688,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	for(int i=0; i<3;i++){
 		info_debug_msg.rel_pos[i] = pos_rel(i); 
 		info_debug_msg.abs_pos[i] = pos_abs(i); 
+		info_debug_msg.pos_1[i] = pos_l_(i); 
+		info_debug_msg.pos_2[i] = pos_r_(i); 
 		info_debug_msg.er[i] = e_pos_rel(i); 
 		info_debug_msg.ea[i] = e_pos_abs(i); 
 	}
@@ -704,31 +706,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
     pub_info_debug.publish(info_debug_msg);
 	
-// // //  ----------------- EE-POSES -------------//
-
-	geometry_msgs::PoseStamped pose_left_arm;
-	pose_left_arm.pose.position.x = pos_l_(0);
-	pose_left_arm.pose.position.y = pos_l_(1);
-	pose_left_arm.pose.position.z = pos_l_(2);
-	pose_left_arm.pose.orientation.w = rot_l_(0);
- 	pose_left_arm.pose.orientation.x = rot_l_(1);
- 	pose_left_arm.pose.orientation.y = rot_l_(2);
- 	pose_left_arm.pose.orientation.z = rot_l_(3);
-
-	pub_EE1_pose_.publish(pose_left_arm);
-
-	geometry_msgs::PoseStamped pose_right_arm;
-	pose_left_arm.pose.position.x = pos_r_(0);
-	pose_left_arm.pose.position.y = pos_r_(1);
-	pose_left_arm.pose.position.z = pos_r_(2);
-	pose_left_arm.pose.orientation.w = rot_r_(0);
-    pose_left_arm.pose.orientation.x = rot_r_(1);
-    pose_left_arm.pose.orientation.y = rot_r_(2);
-    pose_left_arm.pose.orientation.z = rot_r_(3);
-
-
-	pub_EE2_pose_.publish(pose_right_arm);
-
 	count = count+1; 
 
 										  }
