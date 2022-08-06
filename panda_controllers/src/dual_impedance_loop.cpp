@@ -4,9 +4,9 @@
 
 #define     MASS          1.5                         // [kg]         apparent mass
 #define     Kr_DEFAULT    500                         // [Nm]         default relative stiffness
-#define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);     // [Ns/m]       default relative damping
+#define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]      default relative damping
 #define     Ka_DEFAULT    200                         // [Nm]         default absolutestiffness
-#define     Da_DEFAULT    2*sqrt(Ka_DEFAULT*MASS);     // [Ns/m]       default absolute damping          
+#define     Da_DEFAULT    2*sqrt(Ka_DEFAULT*MASS);    // [Ns/m]      default absolute damping          
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
 #define     DZ_VALUE      5                           // dead zone value ext forces (?)       
@@ -21,8 +21,7 @@ using DQ_robotics::C8;
 
 Vector6d dual_impedance_loop::dead_zone(Vector6d wrench_ext, double dz_value){
    Vector6d wrench_n; 
-
-   for (int i = 0; i < 6; i++) {
+for (int i = 0; i < 6; i++) {
     if (abs(wrench_ext[i]) < dz_value) {
       wrench_n[i] = 0;
     } else if (wrench_ext[i] <= -dz_value) {
@@ -45,31 +44,28 @@ Vector6d dual_impedance_loop::wrench_mapping(Vector6d wrench_ext,DQ_robotics::DQ
        Ibar.block<3,3>(3,5) = MatrixXd::Identity(3,3);
        MatrixXd Glog = Ibar * G * Q8;
        flog = Glog.transpose()*wrench_ext;
-
     return flog;
     }
 
 void dual_impedance_loop::wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ_robotics::DQ x1, DQ_robotics::DQ x2,DQ_robotics::DQ xa){
     //linear mapping from the external wrenches measured at the EEs to the abs and rel task space
-    DQ rot_dq; 
-    Vector3d p1,p2,pa,p1_a,p2_a;
-    Vector4d r1;
-    Vector3d f1,f2,fa,Ma,fr,Mr;  
-    Vector6d wr1_1,wr2_1,wa,wr;
+    DQ rot_dq; Vector3d p1,p2,pa,p1_a,p2_a; Vector4d r1; Vector3d f1,f2,fa,Ma,fr,Mr; Vector6d wr1_1,wr2_1,wa,wr;
     p1 = vec3(x1.translation()); p2 = vec3(x2.translation()); pa = vec3(xa.translation());
-    r1 = vec4(x1.rotation()); rot_dq = DQ(r1); 
+    r1 = vec4(x1.rotation()); rot_dq = DQ(r1); //rotation of left arm
     //virtual stick displacement
-    f1 = wrench_1.head(3); f2 = wrench_2.head(3); 
+    f1 = wrench_1.head(3); f2 = wrench_2.head(3); //measured forces
     p1_a << pa - p1; p2_a << pa - p2; 
-    //ext foprces wrt to left arm frame (arbitrary)
+    //ext wrenches wrt to left arm frame (arbitrary) to compute relative force and toque
     wr1_1 = vec6(rot_dq.conj()*DQ(wrench_1)*rot_dq); 
     wr2_1 = vec6(rot_dq.conj()*DQ(wrench_2)*rot_dq); 
     //absolute and realtive mapped wrenches computation
-    fa = wrench_1.head(3) + wrench_2.head(3); 
-    fr = 0.5*(wr2_1.head(3)-wr1_1.head(3));
-    Ma = wrench_1.tail(3) + (p1_a).cross(f1) + wrench_2.tail(3) + (p2_a).cross(f2);
-    Mr = 0.5*(wr2_1.tail(3)-wr1_1.tail(3)); 
-    wa << fa,Ma; wr << fr,Mr; 
+    fa = wrench_1.head(3) + wrench_2.head(3); // abs force
+    fr = 0.5*(wr2_1.head(3) - wr1_1.head(3)); // rel force
+    //Ma = wrench_1.tail(3) + (p1_a).cross(f1) + wrench_2.tail(3) + (p2_a).cross(f2); // abs torque
+    Mr = 0.5*(wr2_1.tail(3)-wr1_1.tail(3)); // rel torque
+    // wa.head(3) << fa; wa.tail(3) << Ma; 
+    wa << fa(0),fa(1),fa(2),0,0,0; //torques a 0 to begin 
+    wr.head(3) << fr; wr.tail(3) << Mr; 
     coop_wrench.wa = wa; coop_wrench.wr = wr; 
 }
    
@@ -93,13 +89,16 @@ void dual_impedance_loop::compute_pose_disp(Vector6d yr_hat,Vector6d dyr_hat,Vec
             DQ yr_hat_dq,xr_hat_dq,dxr_hat_dq;
             DQ ya_hat_dq,xa_hat_dq,dxa_hat_dq;
             yr_hat_dq = DQ(yr_hat); ya_hat_dq = DQ(ya_hat);  
+            //---
             disp.xr_hat = vec8(exp(yr_hat_dq)); 
             disp.xa_hat = vec8(exp(ya_hat_dq));
             xr_hat_dq = DQ(disp.xr_hat); xa_hat_dq = DQ(disp.xa_hat);
             MatrixXd Q8_r = getQ8(xr_hat_dq); MatrixXd Q8_a = getQ8(xa_hat_dq);
+            //--
             disp.dxr_hat = Q8_r*dyr_hat;
             disp.dxa_hat = Q8_a*dya_hat; 
             dxr_hat_dq = DQ(disp.dxr_hat); dxa_hat_dq = DQ(disp.dxa_hat); 
+            //--
             MatrixXd Q8_r_dot = getQ8_dot(xr_hat_dq,dxr_hat_dq); MatrixXd Q8_a_dot = getQ8_dot(xa_hat_dq,dxa_hat_dq);
             disp.ddxr_hat = Q8_r*ddyr_hat + Q8_r_dot*dyr_hat;
             disp.ddxa_hat = Q8_a*ddya_hat + Q8_a_dot*dya_hat;
@@ -160,8 +159,8 @@ bool dual_impedance_loop::init(ros::NodeHandle& node_handle){
     dpose_r_d_.setZero();
     ddpose_r_d_.setZero();
     xr_ << 1,0,0,0,0,0,0,0; xa_<< 1,0,0,0,0,0,0,0; x1_<< 1,0,0,0,0,0,0,0; x2_<< 1,0,0,0,0,0,0,0;  
-    I8 = MatrixXd::Identity(8, 8); 
-    I6 = MatrixXd::Identity(6, 6);
+    I8 = MatrixXd::Identity(8, 8); I6 = MatrixXd::Identity(6, 6);
+    //Initialize log displcaments
     adm_eq.yr_hat.setZero(), adm_eq.dyr_hat.setZero(), adm_eq.ddyr_hat.setZero();  // log mapping of rel displacement
     adm_eq.ya_hat.setZero(), adm_eq.dya_hat.setZero(), adm_eq.ddya_hat.setZero();  // log mapping of abs displacement
     disp.xr_hat << 1,0,0,0,0,0,0,0;             // pose relative displacement 8x1
@@ -171,6 +170,8 @@ bool dual_impedance_loop::init(ros::NodeHandle& node_handle){
     // Initialize stiffness and damping matrices
     KD_r.setIdentity(); BD_r.setIdentity();
     KD_a.setIdentity(); BD_a.setIdentity(); MD.setIdentity();
+    KD_r << I6*Kr_DEFAULT; BD_r << I6*Dr_DEFAULT; 
+    KD_a << I6*Ka_DEFAULT; BD_r << I6*Da_DEFAULT; 
     count = 0;
    return true;
 
@@ -181,23 +182,24 @@ bool dual_impedance_loop::init(ros::NodeHandle& node_handle){
 void dual_impedance_loop::update(){
 
 // =================VARIABLES===============//
-   DQ xa_hat_dq;   // displacement between nominal and computed absolute pose DQ
-   DQ xr_hat_dq;  //  displacement between nominal and computed relative pose DQ
-   DQ pose_r_d_dq, pose_a_d_dq,xr_dq,rot_r_dq; 
-   Vector3d pos_abs_c,pos_rel_c; //computed abs and rel positions
-   Vector4d rot_r; //orientation of relative frame
-   Vector6d wrench_rel,wrench_abs, f_log_a, f_log_r; 
    Vector8d pose_nom,dpose_nom; 
    pose_nom << 1,0,0,0,0,0,0,0;
    dpose_nom.setZero(); 
-  
+   DQ xa_hat_dq;   // displacement between nominal and computed absolute pose DQ
+   DQ xr_hat_dq;  //  displacement between nominal and computed relative pose DQ
+   DQ pose_r_d_dq, pose_a_d_dq; //Dq nominal trajectories
+   DQ x1_dq,x2_dq,xa_dq,xr_dq,rot_r_dq,rot_a_dq;
+   Vector3d pos_abs_c,pos_rel_c; //computed abs and rel positions
+   Vector4d rot_r; //orientation of relative frame
+   Vector6d wrench_rel,wrench_abs, f_log_a, f_log_r; 
+   
    // DQ nominal desired poses
    pose_a_d_dq = DQ(pose_d_); pose_a_d_dq = pose_a_d_dq.normalize(); 
    pose_r_d_dq = DQ(pose_r_d_); pose_r_d_dq = pose_r_d_dq.normalize(); 
    
    //Relative impedance
-   KD_r(0,0)= K_ROT; KD_r(1,1)= K_ROT; KD_r(2,2)= K_ROT;
-   KD_r(3,3)= Kr_DEFAULT; KD_r(4,4)= Kr_DEFAULT; KD_r(5,5)= Kr_DEFAULT;
+   KD_r(0,0)= K_ROT; KD_r(1,1)= K_ROT; KD_r(2,2)= K_ROT; //rotational
+   KD_r(3,3)= Kr_DEFAULT; KD_r(4,4)= Kr_DEFAULT; KD_r(5,5)= Kr_DEFAULT; //translational
    BD_r(0,0)= D_ROT;  BD_r(1,1)= D_ROT; BD_r(2,2)= D_ROT;
    BD_r(3,3)= Dr_DEFAULT; BD_r(4,4)= Dr_DEFAULT; BD_r(5,5)= Dr_DEFAULT;
    //Absolute impedance
@@ -212,22 +214,26 @@ void dual_impedance_loop::update(){
    wrench_ext_l_ = dead_zone(wrench_ext_l_,DZ_VALUE); 
    wrench_ext_r_ = dead_zone(wrench_ext_r_,DZ_VALUE);
 
-   //Wrench linear mapping to CDTS space
-   DQ x1_dq,x2_dq,xa_dq;
-   x1_dq = DQ(x1_); x2_dq = DQ(x2_); xa_dq = DQ(xa_); 
+   //Current poses
+   x1_dq = DQ(x1_); x2_dq = DQ(x2_); xr_dq = DQ(xr_); xa_dq = DQ(xa_);
+
+   //Wrench linear mapping to CDTS space 
    wrench_adaptor(wrench_ext_l_,wrench_ext_r_,x1_dq,x2_dq,xa_dq); 
 
-   //External relative wrench w.r.t compliant frame
-   xr_dq = DQ(xr_); xr_dq = xr_dq.normalize();
-   rot_r = vec4(xr_dq.rotation()); rot_r_dq = DQ(rot_r); 
-   wrench_rel << coop_wrench.wr; wrench_abs << coop_wrench.wa; 
+   //External wrench w.r.t compliant frames
+   xr_dq = xr_dq.normalize(); 
+   xa_dq = xa_dq.normalize();
+   rot_r = vec4(xr_dq.rotation()); rot_r_dq = DQ(rot_r); rot_a_dq = xa_dq.rotation();
+   wrench_rel << coop_wrench.wr; wrench_abs << coop_wrench.wa;  
    wrench_rel = vec6(rot_r_dq.conj()*DQ(wrench_rel)*rot_r_dq); 
-
-   xr_hat_dq = DQ(disp.xr_hat); xa_hat_dq = DQ(disp.xa_hat); 
+   wrench_abs = vec6(rot_a_dq.conj()*DQ(wrench_abs)*rot_a_dq);
+    
+    xr_hat_dq = DQ(disp.xr_hat); xa_hat_dq = DQ(disp.xa_hat); 
 
    // External wrench consistent with log displacement
-    f_log_a = wrench_mapping(wrench_rel,xr_hat_dq);
-    f_log_r = wrench_mapping(wrench_abs,xa_hat_dq);
+
+    f_log_a = wrench_mapping(wrench_abs,xa_hat_dq);
+    f_log_r = wrench_mapping(wrench_rel,xr_hat_dq);
 
     t = ros::Time::now().toSec();
 
@@ -241,11 +247,12 @@ void dual_impedance_loop::update(){
 
     //Compute compliant trajectory
 
-     compute_traj(pose_r_d_,dpose_r_d_,ddpose_r_d_,pose_d_,dpose_d_,ddpose_d_,disp.xr_hat,disp.dxr_hat,disp.ddxr_hat,
+     compute_traj(pose_r_d_,dpose_r_d_,ddpose_r_d_,pose_d_,dpose_d_,ddpose_d_,
+                    disp.xr_hat,disp.dxr_hat,disp.ddxr_hat,
                     disp.xa_hat,disp.dxa_hat,disp.ddxa_hat);
     
-     pos_abs_c = vec3(DQ(comp.xa_c).translation()); 
-     pos_rel_c = vec3(DQ(comp.xr_c).translation()); 
+     pos_abs_c = vec3((DQ(comp.xa_c)).translation()); 
+     pos_rel_c = vec3((DQ(comp.xr_c)).translation()); 
 
   
 //   // //---------------PUBLISHING----------------//
@@ -263,6 +270,8 @@ void dual_impedance_loop::update(){
     for (int i=0; i<3; i++){
          compliant_traj_msg.pos_rel_c[i] = pos_rel_c(i); 
          compliant_traj_msg.pos_abs_c[i] = pos_abs_c(i); 
+         compliant_traj_msg.fa[i] = ((coop_wrench.wa).head(3))(i); 
+         compliant_traj_msg.fr[i] = ((coop_wrench.wr).head(3))(i); 
        }   
 
     if(pose_d_!= pose_nom && pose_r_d_!= pose_nom){

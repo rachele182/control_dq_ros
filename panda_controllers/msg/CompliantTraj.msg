@@ -15,3 +15,5 @@ float64[8] dpose_abs_c
 float64[8] ddpose_abs_c
 float64[3] pos_rel_c
 float64[3] pos_abs_c
+float64[3] fa #absolute force
+float64[3] fr #relative force

@@ -603,9 +603,9 @@ int main(int argc, char **argv)
           Vector3d pos_r;
           pos_r = vec3(pose_rel_dq.translation());
           for (int i=0; i<8; i++){
-           traj_msg.pose_r[i] = pose_rel(i);
-           traj_msg.dpose_r[i] = 0;
-           traj_msg.ddpose_r[i] = 0;
+          traj_msg.pose_r[i] = pose_rel(i);
+          traj_msg.dpose_r[i] = 0;
+          traj_msg.ddpose_r[i] = 0;
          }
           for (int i=0; i<3; i++){
           traj_msg.position_r[i] = pos_r(i);

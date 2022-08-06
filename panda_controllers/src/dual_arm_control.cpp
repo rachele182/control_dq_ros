@@ -32,10 +32,10 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-// #define 	KP			    200  // proportional gain motion controller (case of fixed relative)
-// #define 	KD			    40   // derivative gain motion controller
-#define 	KP			    120  // proportional gain motion controller
-#define 	KD			    30   // derivative gain motion controller
+#define 	KP			    300  // proportional gain motion controller (case of fixed relative)
+#define 	KD			    40   // derivative gain motion controller
+// #define 	KP			    120  // proportional gain motion controller
+// #define 	KD			    30   // derivative gain motion controller
 #define 	KP_ABS			100  // proportional gain motion controller
 #define 	KD_ABS			20   // derivative gain motion controller
 #define     KI              50   // integrative term 
