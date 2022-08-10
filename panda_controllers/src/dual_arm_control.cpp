@@ -32,12 +32,12 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    300  // proportional gain motion controller (case of fixed relative)
-#define 	KD			    40   // derivative gain motion controller
-// #define 	KP			    120  // proportional gain motion controller
-// #define 	KD			    30   // derivative gain motion controller
-#define 	KP_ABS			100  // proportional gain motion controller
-#define 	KD_ABS			20   // derivative gain motion controller
+// #define 	KP			    300  // proportional gain motion controller (case of fixed relative)
+// #define 	KD			    40   // derivative gain motion controller
+#define 	KP			    120  // proportional gain motion controller
+#define 	KD			    30   // derivative gain motion controller
+#define 	KP_ABS			80 // proportional gain motion controller
+#define 	KD_ABS			20 // derivative gain motion controller
 #define     KI              50   // integrative term 
 #define 	D_JOINTS	    2    // dissipative term joints
 #define 	COLL_LIMIT		25   // 
@@ -69,11 +69,9 @@ DQ_SerialManipulator DualArmControl::init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O
 	}
 
 DQ_CooperativeDualTaskSpace DualArmControl::init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2){
-
 	DQ_CooperativeDualTaskSpace dual_arm(robot1,robot2); 
     return dual_arm;
 }
-
 
 //================Init single arms ==============//
 
@@ -179,7 +177,7 @@ bool DualArmControl::init( hardware_interface::RobotHW* robot_hw,
 
 	//----- INITIALIZE NODE, ROBOTs HANDLER AND  INTERFACE -----//
 
-	  if (!node_handle.getParam("left/arm_id", left_arm_id_)) {
+	if (!node_handle.getParam("left/arm_id", left_arm_id_)) {
     	ROS_ERROR_STREAM(
         "DualArmController: Could not read parameter left_arm_id_");
    	    return false;
@@ -265,11 +263,7 @@ bool DualArmControl::init( hardware_interface::RobotHW* robot_hw,
       ROS_ERROR("DualArmCartesianImpedanceExampleController: %s", ex.what());
       return false;
     }
-    tf::transformTFToEigen(transform, Ol_T_Or_);  // NOLINT (readability-identifier-naming)  
-    // Setup publisher for the centering frame.
-    publish_rate_ = franka_hw::TriggerRate(30.0);
-    center_frame_pub_.init(node_handle, "centering_frame", 1, true);
-  
+   
 	return left_success && right_success;
 
 	}
@@ -296,12 +290,6 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 	//Augment joint vector
 	q_in.head(7) << q_l_in;
 	q_in.tail(7) << q_r_in;
-
-	// Homogeneous transformation matrices
-	EEr_T_EEl_ = transform_r.inverse() * Ol_T_Or_.inverse() *transform_l;  // NOLINT (readability-identifier-naming)
-	EEl_T_C_.setIdentity();
-  	Vector3d EEr_r_EEr_EEl =  EEr_T_EEl_.translation();    // NOLINT (readability-identifier-naming)
-  	EEl_T_C_.translation() = -0.5 * EEr_T_EEl_.inverse().rotation() * EEr_r_EEr_EEl;
 
 	// ==========  BASE FRAMES (set for now base of right arm (ip: 3.100) as world frame) ======= ///
 	Vector3d p_b_0_l; //position base frame left arm
@@ -417,6 +405,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Matrix<double, 8, 7>   J1;             // pose jacobian left arm
 	Matrix<double, 8, 7>   J2;             // pose jacobian right arm
  	Matrix<double, 8, 14>  Jr;             // relative pose jacobian
+	Matrix<double, 6, 14>  Jg;             // geomtrice Jacobian
  	Matrix<double, 8, 14>  Jr_old;         // previous computed relative pose jacobian
 	Matrix<double, 8, 14>  Ja;             // absolute pose jacobian 
 	Matrix<double, 8, 14>  Ja_old;         // previous compute absolute pose jacobian
@@ -426,8 +415,10 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	J_aug.setZero(); 
 	Matrix<double, 16, 14> J_aug_dot;      // derivative augmented Jacobian [Jr_dot,Ja_dot]
 	Matrix<double, 14, 16> J_aug_inv;      // augmented jacobian pseudo-inverse 
-	
-    
+	//Try dynamically consistent pseudo-inverse (inertia weighted)
+	Matrix<double, 14, 16> J_dyn_inv;      // augmented jacobian pseudo-inverse 
+    Matrix<double, 16, 14> J_aus;     
+
 // // ============================== GET ARMS STATE ======================== //
 
 	franka::RobotState robot_state_right = arms_data_.at(right_arm_id_).state_handle_->getRobotState();
@@ -515,6 +506,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	J1 << dual_panda.pose_jacobian1(q);
 	J2 << dual_panda.pose_jacobian2(q); 
+	
 
 	if(count==0){
 		Jr_old = dual_panda.relative_pose_jacobian(q_in); 
@@ -529,11 +521,17 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Jr << dual_panda.relative_pose_jacobian(q); 
 	Ja << dual_panda.absolute_pose_jacobian(q); 
 
+	Jg << geomJ(Ja,pose_abs_dq); 
+	
+
 	Jr_dot = (Jr - Jr_old)/(period.toSec()); 
 	Ja_dot = (Ja - Ja_old)/(period.toSec()); 
 	
 	dpose_rel << Jr*dq; 
 	dpose_abs << Ja*dq; 
+
+	Vector6d twist;
+	twist = Jg*dq; 
 
 	J_aug.topRows(8) << Jr;
 	J_aug.bottomRows(8) << Ja; 
@@ -619,8 +617,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 // Control input joint space
 
    aq << J_aug_inv*ax;
-	
-
+   
 //---------------- CONTROL COMPUTATION -----------------//
 	
    tau_task << Ca + Ma*aq;  // +g (already compensated)
@@ -637,8 +634,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	
 //----------------- FINAL CONTROL --------------------------------//
 	
-   tau_d_left << tau_task.head(7) + 0*tau_null_left; 
-   tau_d_right << tau_task.tail(7) + 0*tau_null_right; 
+   tau_d_left << tau_task.head(7) + tau_null_left; 
+   tau_d_right << tau_task.tail(7) + tau_null_right; 
   
 	
 // // 	//=================================| END CONTROL |==================================//
@@ -665,7 +662,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	}
 
 
-// 	//set arm command torques
+ 	////Set arm command torques
 	for (size_t i = 0; i < 7; ++i) {
 		arms_data_.at(left_arm_id_).joint_handles_[i].setCommand(tau_d_left(i));
 		arms_data_.at(right_arm_id_).joint_handles_[i].setCommand(tau_d_right(i));
@@ -694,6 +691,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.pos_2[i] = pos_r_(i); 
 		info_debug_msg.er[i] = e_pos_rel(i); 
 		info_debug_msg.ea[i] = e_pos_abs(i); 
+		info_debug_msg.vel[i] = (twist.tail(3))(i); 
+		info_debug_msg.w[i] = (twist.head(3))(i); 
 	}
 
 	info_debug_msg.abs_norm = e_pos_abs.norm();
@@ -727,6 +726,35 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
   return tau_d_saturated;
 }
 
+
+MatrixXd DualArmControl::geomJ(const MatrixXd& absoluteposeJ, const DQ& absolutepose) {
+  Matrix<double, 8, 1> v;
+  Matrix<double, 3, 4> CJ4_2_J3;
+  MatrixXd J;
+  v << -1, 1, 1, 1, -1, 1, 1, 1;
+  MatrixXd C8 = v.array().matrix().asDiagonal();
+  MatrixXd C4m = -C8.block(0, 0, 4, 4);
+  CJ4_2_J3 << 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1;
+  DQ xm = absolutepose;
+  if (absoluteposeJ.cols() == 14) {
+    J.resize(6, 14);
+    J.block(0, 0, 3, 14) =
+        CJ4_2_J3 * 2 * xm.P().conj().haminus4() * absoluteposeJ.topRows(4);
+    J.block(3, 0, 3, 14) =
+        CJ4_2_J3 * 2 *
+        (xm.D().hamiplus4() * C4m * absoluteposeJ.topRows(4) +
+         xm.P().conj().haminus4() * absoluteposeJ.middleRows(4, 4));
+  } else {
+    J.resize(6, 7);
+    J.block(0, 0, 3, 7) =
+        CJ4_2_J3 * 2 * xm.P().conj().haminus4() * absoluteposeJ.topRows(4);
+    J.block(3, 0, 3, 7) =
+        CJ4_2_J3 * 2 *
+        (xm.D().hamiplus4() * C4m * absoluteposeJ.topRows(4) +
+         xm.P().conj().haminus4() * absoluteposeJ.middleRows(4, 4));
+  }
+  return J;
+}
  
 // // // //                          CALLBACKS		                     //
 // // // //---------------------------------------------------------------//
@@ -735,26 +763,29 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
 
 void DualArmControl::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
-  
-	// pose_a_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
-	// dpose_a_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
-	// ddpose_a_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
-	pose_r_d_ << msg->pose_r[0], msg->pose_r[1], msg->pose_r[2],msg->pose_r[3],msg->pose_r[4],msg->pose_r[5],msg->pose_r[6],msg->pose_r[7];		
-	dpose_r_d_ << msg->dpose_r[0], msg->dpose_r[1], msg->dpose_r[2],msg->dpose_r[3],msg->dpose_r[4],msg->dpose_r[5],msg->dpose_r[6],msg->dpose_r[7];	
-	ddpose_r_d_ << msg->ddpose_r[0], msg->ddpose_r[1], msg->ddpose_r[2],msg->ddpose_r[3],msg->ddpose_r[4],msg->ddpose_r[5],msg->ddpose_r[6],msg->ddpose_r[7];	
+			for (int i=0; i<8; i++){
+          		// pose_a_d_(i) = msg->pose_d[i];
+          		// dpose_a_d_(i) = msg->dpose_d[i];
+          		// ddpose_a_d_(i) = msg->ddpose_d[i];
+          		// pose_r_d_(i) = msg->pose_r[i];
+		  		// dpose_r_d_(i) = msg->dpose_r[i];
+		  		// ddpose_r_d_(i) = msg->ddpose_r[i];
+          }
  } 
 
 // //----------- DESIRED COMPLIANT TRAJECTORY -------------//
 void DualArmControl::CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
-  
-	pose_a_d_ << msg->pose_abs_c[0], msg->pose_abs_c[1], msg->pose_abs_c[2],msg->pose_abs_c[3],msg->pose_abs_c[4],msg->pose_abs_c[5],msg->pose_abs_c[6],msg->pose_abs_c[7];		
-	dpose_a_d_ << msg->dpose_abs_c[0], msg->dpose_abs_c[1], msg->dpose_abs_c[2],msg->dpose_abs_c[3],msg->dpose_abs_c[4],msg->dpose_abs_c[5],msg->dpose_abs_c[6],msg->dpose_abs_c[7];	
-	ddpose_a_d_ << msg->ddpose_abs_c[0], msg->ddpose_abs_c[1], msg->ddpose_abs_c[2],msg->ddpose_abs_c[3],msg->ddpose_abs_c[4],msg->ddpose_abs_c[5],msg->ddpose_abs_c[6],msg->ddpose_abs_c[7];	
- } 
-										  
-
-}  // end namespace franka_softbots
+			for (int i=0; i<8; i++){
+          		pose_a_d_(i) = msg->pose_abs_c[i];
+          		dpose_a_d_(i) = msg->dpose_abs_c[i];
+          		ddpose_a_d_(i) = msg->ddpose_abs_c[i];
+          		pose_r_d_(i) = msg->pose_rel_c[i];
+		  		dpose_r_d_(i) = msg->dpose_rel_c[i];
+		  		ddpose_r_d_(i) = msg->ddpose_rel_c[i];
+          }
+		}										
+}  // end namespace panda_controllers
 
 
 PLUGINLIB_EXPORT_CLASS(panda_controllers::DualArmControl,

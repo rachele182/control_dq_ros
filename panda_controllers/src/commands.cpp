@@ -237,19 +237,24 @@ void dummy(Vector3d pos_i,double tf){
 void abs_traj (Vector3d pos_i, double time) {
   Vector3d tmp,pos_f; 
   double t_f,t; 
+  double z_c; //contact with object
+  z_c = 0.16;  
 
-  if(time>=0 && time<10){ //go down 10 cm
+  if(time>=0 && time<10){ //go down 
     tmp << pos_i; 
-    pos_f << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    // pos_f << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    pos_f << pos_i(0), pos_i(1), z_c; 
     t_f = 10; 
     t = time;
   }else if (time>=10 && time<12){ //pause
-    tmp << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    // tmp << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    tmp << pos_i(0), pos_i(1), z_c; 
     pos_f << tmp; 
     t_f = 2;
     t = time - 10; 
   }else if (time>=12 && time<22){ //go up
-    tmp << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    // tmp << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    tmp << pos_i(0), pos_i(1), z_c; 
     pos_f << pos_i(0), pos_i(1), pos_i(2);
     t_f = 10;
     t = time - 12; 
@@ -443,7 +448,7 @@ int main(int argc, char **argv)
   DQ pose_1_dq, pose_2_dq;
   Vector3d pos_in_1, pos_in_2; 
   Vector4d or_1, or_2; 
-  Vector8d pose_abs_in; 
+  Vector8d pose_abs_in,pose_rel_in; 
   double tf,zf,Ts;
   ros::Time t_init; 
   Ts = 0.01; //sampling time node 
@@ -502,6 +507,7 @@ int main(int argc, char **argv)
     pos_in_1 << pos1; pos_in_2 << pos2;
     or_1 = vec4(pose_1_dq.rotation()); or_2 = vec4(pose_2_dq.rotation()); 
     pose_abs_in << pose_abs; 
+    pose_rel_in << pose_rel; 
 
     t_init = ros::Time::now();
     t = (ros::Time::now() - t_init).toSec();
@@ -597,15 +603,14 @@ int main(int argc, char **argv)
 
         if(choice==3 || choice==4) {
           // publish also des relative pose
-          DQ pose_rel_dq;
-          pose_rel_dq = DQ(pose_rel); 
-          pose_rel_dq = pose_rel_dq.normalize(); 
-          Vector3d pos_r;
+          Vector3d pos_r; DQ pose_rel_dq; 
+          pose_rel_dq = DQ(pose_rel).normalize(); 
           pos_r = vec3(pose_rel_dq.translation());
+
           for (int i=0; i<8; i++){
-          traj_msg.pose_r[i] = pose_rel(i);
-          traj_msg.dpose_r[i] = 0;
-          traj_msg.ddpose_r[i] = 0;
+            traj_msg.pose_r[i] = pose_rel_in(i);
+            traj_msg.dpose_r[i] = 0;
+            traj_msg.ddpose_r[i] = 0;
          }
           for (int i=0; i<3; i++){
           traj_msg.position_r[i] = pos_r(i);

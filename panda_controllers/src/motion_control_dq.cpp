@@ -244,7 +244,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Vector8d derror; 		         // pose vel. error  8x1
 	Vector8d error_i;                // integrative term error 8x1
 	Vector3d pos_error;              // position error 3x1
-	Vector3d norma;                  // error norm
 	Vector8d xe;                     // pose displacement                  
 	Vector8d dxe;                    // derivative of pose displacement
 	Vector8d pose;       	         // current pose 8x1
@@ -332,7 +331,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	// pos_error << pose_d_dq.translation().q.segment(1, 3) - pose_dq.translation().q.segment(1, 3);
 	pos_error << vec3(pose_d_dq.translation()) - vec3(pose_dq.translation());
 
-	norma << pos_error.norm(); 
 
 
 // 	//======================| CONTROL VARIABLES |======================//
@@ -426,9 +424,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	info_debug_msg.pos_error[0] = pos_error(0); // position error x-axis
 	info_debug_msg.pos_error[1] = pos_error(1); // position error y-axis
 	info_debug_msg.pos_error[2] = pos_error(2); // position error z-axis
-	info_debug_msg.norma[0] = norma(0); // position error norm x-axis
-	info_debug_msg.norma[1] = norma(1); // position error norm y-axis
-	info_debug_msg.norma[2] = norma(2); // position error norm z-axis
 
  	pub_info_debug.publish(info_debug_msg);
 

@@ -6,14 +6,23 @@ float64[6] flog
 float64[6] wrench_n
 float64[3] position_c
 float64[3] f_filtered
-#dual-arm
+#dual-arm sytem
 float64[8] pose_rel_c
 float64[8] dpose_rel_c
 float64[8] ddpose_rel_c
+##################
 float64[8] pose_abs_c
 float64[8] dpose_abs_c
 float64[8] ddpose_abs_c
-float64[3] pos_rel_c
-float64[3] pos_abs_c
+###########
+float64[3] pos_rel_c #computed position for relative
+float64[3] vel_rel_c #computed linear velocity for relative
+float64[3] acc_rel_c #computed linear acceleration for relative 
+float64[3] pos_abs_c #computed position for absolute
+float64[3] vel_abs_c #computed linear velocity for absolute
+float64[3] acc_abs_c #computed linear acceleration for absolute
+float64[3] f1 #ext force arm1
+float64[3] f2 #ext force arm2
 float64[3] fa #absolute force
 float64[3] fr #relative force
+float64[3] fa_filtered #force abs after LPF (world_frame)

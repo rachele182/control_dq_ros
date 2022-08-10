@@ -98,14 +98,6 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
   		std::string right_arm_id_;  ///< Name of the right arm, retrieved from the parameter server.
 		
 		// -----------------//
-
-		///< Transformation between base frames of the robots.
-  		Eigen::Affine3d Ol_T_Or_;  // NOLINT (readability-identifier-naming)
-  		///< Target transformation between the two endeffectors.
-  		Eigen::Affine3d EEr_T_EEl_;  // NOLINT (readability-identifier-naming)
-  		///< Transformation from the centering frame to the left end effector.
-  		Eigen::Affine3d EEl_T_C_{};
-
   		///< Publisher for the centering tracking frame of the coordinated motion.
   		realtime_tools::RealtimePublisher<geometry_msgs::PoseStamped> center_frame_pub_;
   		///< Rate to trigger publishing the current pose of the centering frame.
@@ -132,6 +124,8 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
         DQ_SerialManipulator init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O,double EE_offset); // DQ panda representation
 		// ------DQ dual Panda representation---//
   		DQ_CooperativeDualTaskSpace init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2);
+
+		MatrixXd geomJ(const MatrixXd& absoluteposeJ, const DQ& absolutepose);
         //Utils
 		bool var_damp; 
 		std::string name_space;    

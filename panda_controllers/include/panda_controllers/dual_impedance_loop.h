@@ -32,8 +32,9 @@
 
 typedef Matrix<double, 8, 1> Vector8d;
 typedef Matrix<double, 6, 1> Vector6d;
+using namespace std; 
 
-// namespace panda_controllers{
+//namespace panda_controllers{
 
 class dual_impedance_loop{
     public:
@@ -47,13 +48,15 @@ class dual_impedance_loop{
         MatrixXd getQ4_dot(DQ_robotics::DQ &rot,DQ_robotics::DQ &drot);
         MatrixXd getQ8_dot(DQ_robotics::DQ &x,DQ_robotics::DQ &dx);
         Vector6d wrench_mapping(Vector6d wrench_ext,DQ_robotics::DQ x_hat);
-        Vector6d dead_zone(Vector6d wrench_ext, double dz_value);
+        Vector6d model_ext_forces(double t); 
+        Vector6d dead_zone(Vector6d wrench_ext, double dz_value,double dz_value_torques);
         void admittance_eq(Vector6d flog_r,Vector6d flog_abs,Vector6d yr_hat,Vector6d dyr_hat,Vector6d ya_hat,Vector6d dya_hat,
         MatrixXd Kd_r,MatrixXd Bd_r,MatrixXd Md_r, MatrixXd Kd_a,MatrixXd Bd_a,MatrixXd Md_a,double time_prec, const double t) ; 
         void compute_pose_disp(Vector6d yr_hat,Vector6d dyr_hat,Vector6d ddyr_hat,Vector6d ya_hat,Vector6d dya_hat,Vector6d ddya_hat); 
         void compute_traj(Vector8d xr_d,Vector8d dxr_d,Vector8d ddxr_d,Vector8d xa_d,Vector8d dxa_d,Vector8d ddxa_d,
                             Vector8d xr_hat,Vector8d dxr_hat,Vector8d ddxr_hat,Vector8d xa_hat,Vector8d dxa_hat,Vector8d ddxa_hat);
         void wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ_robotics::DQ x1, DQ_robotics::DQ x2,DQ_robotics::DQ xa); 
+        double lowpassFilter(double sample_time, double y, double y_last, double cutoff_frequency); 
         //TRAJ STRUCTURES 
         struct adm_struct{ //log of relative/absolute pose displacements
             Vector6d yr_hat;
@@ -84,6 +87,7 @@ class dual_impedance_loop{
             Vector6d wa;
         } coop_wrench; 
         //VARIABLES
+        ros::Time t_init; 
         int count;
         double t; 
         double time_prec;
@@ -107,7 +111,21 @@ class dual_impedance_loop{
         Vector8d xa_;                         // current absolute pose
         Vector8d x1_;                         // current left EE pose
         Vector8d x2_;                         // current right EE pose
-
+        //utils for filter
+        double fr_x_filt;
+        double fr_y_filt;
+        double fr_z_filt;
+        double fa_x_filt;
+        double fa_y_filt;
+        double fa_z_filt;
+        double fax_prec;
+        double fay_prec;
+        double faz_prec;
+        double frx_prec;
+        double fry_prec;
+        double frz_prec;
+    
+        
     //------------SUBSCRIBERS-----------//
         
         //nominal desired trajectories
@@ -131,7 +149,7 @@ class dual_impedance_loop{
         panda_controllers::CompliantTraj compliant_traj_msg;
 }; 
 
-// } //end namespace
+//} //end namespace
 
 
 #endif 

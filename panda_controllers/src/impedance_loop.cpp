@@ -460,8 +460,8 @@ MatrixXd impedance_loop::getQ4_dot(DQ_robotics::DQ &rot,DQ_robotics::DQ &drot)
     Q4_dot(2,1)  = dgamma*pow(ny,2)+dtheta + 2*gamma*ny*dny;;
     Q4_dot(2,2)  = gamma*ny*dnz + gamma*nz*dny + ny*nz*dgamma;
     Q4_dot(3,0)  = gamma*dnz*nx + gamma*nz*dnx + nx*nz*dgamma;
-    Q4_dot(3,1)  = gamma*nx*dnz + gamma*nz*dny + ny*nz*dgamma;
-    Q4_dot(3,2)  = gamma*pow(nz,2)+dtheta + 2*gamma*nz*dnz;
+    Q4_dot(3,1)  = gamma*ny*dnz + gamma*nz*dny + ny*nz*dgamma;
+    Q4_dot(3,2)  = gamma*pow(nz,2)+ dtheta + 2*gamma*nz*dnz;
 
 return Q4_dot;
 }
@@ -486,11 +486,12 @@ MatrixXd impedance_loop::getQ8_dot(DQ_robotics::DQ &x,DQ_robotics::DQ &dx)
     MatrixXd Q8_dot(8,6);
     Q8_dot.setZero();
     Q8_dot.topRows(4) << Q_dot;
-    Q8_dot.bottomRows(4) << 0.5*dp.hamiplus4()*Q, dr.haminus4()*Qp;
+    Q8_dot.bottomRows(4) << 0.5*dp.hamiplus4()*Q + 0.5*p.hamiplus4()*Q_dot, dr.haminus4()*Qp;
 
 return Q8_dot;
 
 }
+
 
 
 

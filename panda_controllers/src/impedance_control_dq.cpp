@@ -264,7 +264,6 @@ void ImpedanceControlDq::update(const ros::Time& /*time*/,
 DQ_SerialManipulator robot = init_dq_robot();
 
 	Vector3d pos_error;               // position error 3x1
-	Vector3d norma;                   // error norm
 	Vector3d pos;                     // current EE position 3x1
 	DQ pose_dq;                       // DQ current pose 
 	DQ pose_d_dq;                     // DQ desired pose
@@ -394,7 +393,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	// Store position error
 
 	pos_error << vec3(pose_d_dq.translation()) - pos;
-	norma << pos_error.norm(); 
 
 	// Task space control input
     ax = hamiplus8(DQ(ddpose_d_))*C8()*disp.x_hat+ 2*hamiplus8(DQ(dpose_d_))*C8()*disp.dx_hat + hamiplus8(DQ(pose_d_))*C8()*disp.ddx_hat - Jp_dot*dq; 
@@ -468,9 +466,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	info_debug_msg.pos_error[0] = pos_error(0); // position error x-axis
 	info_debug_msg.pos_error[1] = pos_error(1); // position error y-axis
 	info_debug_msg.pos_error[2] = pos_error(2); // position error z-axis
-	info_debug_msg.norma[0] = norma(0); // position error norm x-axis
-	info_debug_msg.norma[1] = norma(1); // position error norm y-axis
-	info_debug_msg.norma[2] = norma(2); // position error norm z-axis
 
  	pub_info_debug.publish(info_debug_msg);
 
