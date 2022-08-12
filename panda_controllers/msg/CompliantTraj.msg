@@ -25,4 +25,4 @@ float64[3] f1 #ext force arm1
 float64[3] f2 #ext force arm2
 float64[3] fa #absolute force
 float64[3] fr #relative force
-float64[3] fa_filtered #force abs after LPF (world_frame)
+float64[3] fa_not_filt 

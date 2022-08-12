@@ -29,10 +29,15 @@
 #include "dqrobotics/DQ.h"
 #include <dqrobotics/utils/DQ_Constants.h>
 #include <dqrobotics/robot_modeling/DQ_Kinematics.h>
+#include "stdafx.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include "dataanalysis.h"
 
 typedef Matrix<double, 8, 1> Vector8d;
 typedef Matrix<double, 6, 1> Vector6d;
 using namespace std; 
+using namespace alglib; 
 
 //namespace panda_controllers{
 
@@ -56,7 +61,8 @@ class dual_impedance_loop{
         void compute_traj(Vector8d xr_d,Vector8d dxr_d,Vector8d ddxr_d,Vector8d xa_d,Vector8d dxa_d,Vector8d ddxa_d,
                             Vector8d xr_hat,Vector8d dxr_hat,Vector8d ddxr_hat,Vector8d xa_hat,Vector8d dxa_hat,Vector8d ddxa_hat);
         void wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ_robotics::DQ x1, DQ_robotics::DQ x2,DQ_robotics::DQ xa); 
-        double lowpassFilter(double sample_time, double y, double y_last, double cutoff_frequency); 
+        double Filter(double y, double y_last); //  exponential moving average filter
+
         //TRAJ STRUCTURES 
         struct adm_struct{ //log of relative/absolute pose displacements
             Vector6d yr_hat;

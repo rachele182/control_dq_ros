@@ -6,7 +6,7 @@
 #define     Kr_DEFAULT    600                         // [Nm]         default relative stiffness
 #define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
 #define     Ka_DEFAULT    300                         // [Nm]         default absolutestiffness
-#define     SC            8                           // empyrically overdamping factor        
+#define     SC            8                          // empyrically overdamping factor        
 #define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);   // [Ns/m]       default absolute damping          
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
@@ -15,7 +15,7 @@
 #define     Ts            0.5                         // sampling time
 #define     freq          5
 
-using namespace DQ_robotics;   using namespace panda_controllers; 
+using namespace DQ_robotics;   using namespace panda_controllers; using namespace alglib; 
 using DQ_robotics::E_;
 using DQ_robotics::C8;
 
@@ -68,20 +68,8 @@ Vector6d dual_impedance_loop::model_ext_forces(double t){
 return wrench; 
 }
 
-double dual_impedance_loop::lowpassFilter(double sample_time, double y, double y_last, double cutoff_frequency){
-  if (sample_time < 0 || !std::isfinite(sample_time)) {
-    throw std::invalid_argument("lowpass-filter: sample_time is negative, infinite or NaN.");
-  }
-  if (cutoff_frequency <= 0 || !std::isfinite(cutoff_frequency)) {
-    throw std::invalid_argument(
-        "lowpass-filter: cutoff_frequency is zero, negative, infinite or NaN.");
-  }
-  if (!std::isfinite(y) || !std::isfinite(y_last)) {
-    throw std::invalid_argument(
-        "lowpass-filter: current or past input value of the signal to be filtered is infinite or "
-        "NaN.");
-  }
-  double gain = sample_time / (sample_time + (1.0 / (2.0 * M_PI * cutoff_frequency)));
+double dual_impedance_loop::Filter(double y, double y_last){  
+  double gain; 
   gain = 0.1; 
   return gain * y + (1 - gain) * y_last;
 }
@@ -117,8 +105,7 @@ void dual_impedance_loop::wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ 
     fr = 0.5*(wr2_1.head(3) - wr1_1.head(3)); // rel force
     Ma = wrench_1.tail(3) + (p1_a).cross(f1) + wrench_2.tail(3) + (p2_a).cross(f2); // abs torque
     Mr = 0.5*(wr2_1.tail(3)- wr1_1.tail(3)); // rel torque
-    // wa.head(3) << fa; wa.tail(3) << Ma; 
-    wa << fa(0),fa(1),fa(2),0,0,0; //torques = 0 to begin 
+    wa.head(3) << fa; wa.tail(3) << Ma; 
     wr.head(3) << fr; wr.tail(3) << Mr; 
     coop_wrench.wa = wa; coop_wrench.wr = wr; 
 }
@@ -251,6 +238,7 @@ void dual_impedance_loop::update(){
    Vector3d pos_abs_c,pos_rel_c; //computed abs and rel positions
    Vector6d wrench_rel,wrench_abs,wrench_rel_f,wrench_abs_f,f_log_a, f_log_r; //mapped ext wrenches
    
+   
    // DQ nominal desired poses
    pose_a_d_dq = DQ(pose_d_).normalize(); 
    pose_r_d_dq = DQ(pose_r_d_).normalize(); 
@@ -278,10 +266,10 @@ void dual_impedance_loop::update(){
 // =============================================///
 
    //Wrench linear mapping to CDTS frames
-    Vector6d wrench_abs_w; 
+    Vector6d wrench_abs_w; Vector3d fa_not_filt;
     wrench_adaptor(wrench_ext_l_, wrench_ext_r_,x1_dq,x2_dq,xa_dq); 
     wrench_rel << coop_wrench.wr; wrench_abs_w << coop_wrench.wa; //(w_abs in WorldFrame) 
-
+    fa_not_filt << wrench_abs_w(0),wrench_abs_w(1),wrench_abs_w(2); 
 
   // ===== Test LP filter ========================//
 
@@ -292,9 +280,9 @@ void dual_impedance_loop::update(){
     fax_prec = fa_x_filt;fay_prec = fa_y_filt;faz_prec = fa_z_filt;
     fa_x_filt = wrench_abs_w(0); fa_y_filt = wrench_abs_w(1); fa_z_filt = wrench_abs_w(2); 
 
-    fa_x_filt = lowpassFilter(Ts,fa_x_filt,fax_prec,freq); 
-    fa_y_filt = lowpassFilter(Ts,fa_y_filt,fay_prec,freq); 
-    fa_z_filt = lowpassFilter(Ts,fa_z_filt,faz_prec,freq); 
+    fa_x_filt = Filter(fa_x_filt,fax_prec); 
+    fa_y_filt = Filter(fa_y_filt,fay_prec); 
+    fa_z_filt = Filter(fa_z_filt,faz_prec); 
 
     wrench_abs_f << fa_x_filt,fa_y_filt,fa_z_filt,0,0,0; 
 
@@ -302,9 +290,9 @@ void dual_impedance_loop::update(){
     frx_prec = fr_x_filt;fry_prec = fr_y_filt;frz_prec = fr_z_filt;
     fr_x_filt = wrench_rel(0); fr_y_filt = wrench_rel(1); fr_z_filt = wrench_rel(2); 
 
-    fr_x_filt = lowpassFilter(Ts,fr_x_filt,frx_prec,freq); 
-    fr_y_filt = lowpassFilter(Ts,fr_y_filt,fry_prec,freq); 
-    fr_z_filt = lowpassFilter(Ts,fr_z_filt,frz_prec,freq); 
+    fr_x_filt = Filter(fr_x_filt,frx_prec); 
+    fr_y_filt = Filter(fr_y_filt,fry_prec); 
+    fr_z_filt = Filter(fr_z_filt,frz_prec); 
 
     wrench_rel_f << fr_x_filt,fr_y_filt,fr_z_filt,0,0,0; 
    
@@ -384,11 +372,11 @@ void dual_impedance_loop::update(){
          compliant_traj_msg.fr[i] = ((wrench_rel_f).head(3))(i); 
          compliant_traj_msg.f1[i] = (wrench_ext_l_.head(3))(i);
          compliant_traj_msg.f2[i] = (wrench_ext_r_.head(3))(i); 
-       } 
+         //
+         compliant_traj_msg.fa_not_filt[i] = fa_not_filt(i); 
+       }
 
-     compliant_traj_msg.fa_filtered[0] = fa_x_filt;   compliant_traj_msg.fa_filtered[1] = fa_y_filt; compliant_traj_msg.fa_filtered[2] = fa_z_filt; 
-
-    if(pose_d_!= pose_nom && pose_r_d_!= pose_nom){
+     if(pose_d_!= pose_nom && pose_r_d_!= pose_nom){
        pub_compliant_traj.publish(compliant_traj_msg);
     }
    

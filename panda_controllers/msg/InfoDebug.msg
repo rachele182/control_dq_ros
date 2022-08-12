@@ -15,6 +15,8 @@ float64[3] rel_pos #relative position
 float64[3] abs_pos #absolute position
 float64[8] rel_pose #relative pose
 float64[8] abs_pose #absolute pose
+float64[3] vel #lin velocity
+float64[3] omega #ang velocity
 float64[8] x1 #arm1 pose
 float64[8] x2 #arm2 pose
 float64[3] pos_1 #relative position
@@ -23,6 +25,8 @@ float64[3] er #relative position error
 float64[3] ea #absolute position error
 float64 abs_norm #absolute error norm
 float64 rel_norm
-float64[3] vel #lin velocity
-float64[3] w #ang velocity
+float64[3] e_n_abs #rotation axis error absolute
+float64[3] e_n_rel #rotation axis error relative
+float64 e_phi_abs #abs rotation angle error
+float64 e_phi_rel #rel rotation angle error
 

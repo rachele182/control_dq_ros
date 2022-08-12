@@ -32,12 +32,10 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-// #define 	KP			    300  // proportional gain motion controller (case of fixed relative)
-// #define 	KD			    40   // derivative gain motion controller
-#define 	KP			    120  // proportional gain motion controller
-#define 	KD			    30   // derivative gain motion controller
-#define 	KP_ABS			80 // proportional gain motion controller
-#define 	KD_ABS			20 // derivative gain motion controller
+#define 	KP			    180   // proportional gain motion controller
+#define 	KD			    30    // derivative gain motion controller
+#define 	KP_ABS			80    // proportional gain motion controller
+#define 	KD_ABS			20    // derivative gain motion controller
 #define     KI              50   // integrative term 
 #define 	D_JOINTS	    2    // dissipative term joints
 #define 	COLL_LIMIT		25   // 
@@ -491,23 +489,15 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	pose_abs_dq = dual_panda.absolute_pose(q);
 	pose_abs = vec8(pose_abs_dq); 
 
+//  Store absolute and relative positions 
+    pose_rel_dq = pose_rel_dq.normalize(); pose_abs_dq = pose_abs_dq.normalize();
+	pos_rel = vec3(pose_rel_dq.translation()); pos_abs = vec3(pose_abs_dq.translation()); 
 
-//  Store absolute and relative positions
-    pose_rel_dq = pose_rel_dq.normalize();
-	pose_abs_dq = pose_abs_dq.normalize();
-	pos_rel = vec3(pose_rel_dq.translation());
-	pos_abs = vec3(pose_abs_dq.translation()); 
-
-	//------
-	Vector4d rot_abs;
-	rot_abs = vec4(pose_abs_dq.rotation());
-	
 // // ================= GET JACOBIANS ===================== //
 
 	J1 << dual_panda.pose_jacobian1(q);
 	J2 << dual_panda.pose_jacobian2(q); 
 	
-
 	if(count==0){
 		Jr_old = dual_panda.relative_pose_jacobian(q_in); 
 		Jr_dot.setZero();
@@ -523,7 +513,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	Jg << geomJ(Ja,pose_abs_dq); 
 	
-
 	Jr_dot = (Jr - Jr_old)/(period.toSec()); 
 	Ja_dot = (Ja - Ja_old)/(period.toSec()); 
 	
@@ -538,9 +527,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	J_aug_dot.topRows(8) << Jr_dot; 
 	J_aug_dot.bottomRows(8) << Ja_dot; 
-
 	
-
 // //  -------------- PUBLISH MATRICES FOR PLANNING -------------//
 
 	robot_state_msg.header.stamp = ros::Time::now();
@@ -567,22 +554,25 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	de_aug.head(8) << der;
 	de_aug.tail(8) << dea; 
     
-	// ==== Store position error for analysis === //
+	// ==== Store variables for analysis === //
 	
-	DQ des_pos_a_dq;
-	Vector3d des_pos_abs;  
-	DQ des_pos_r_dq; 
-	Vector3d des_pos_rel; 
+	DQ des_pos_a_dq; Vector3d des_pos_abs;  DQ des_pos_r_dq; Vector3d des_pos_rel; 
+	Vector3d n_abs, des_n_abs, n_rel,des_n_rel; double phi_abs, des_phi_abs, phi_rel,des_phi_rel;  
 
-	//absolute pos
-    des_pos_a_dq = DQ(pose_a_d_);
-	des_pos_a_dq = DQ(des_pos_a_dq).normalize(); 
+	//des absolute pos and rot
+    des_pos_a_dq = (DQ(pose_a_d_)).normalize(); 
 	des_pos_abs = vec3(des_pos_a_dq.translation()); 
-	//relative pos
-	des_pos_r_dq = DQ(pose_r_d_);
-	des_pos_r_dq = DQ(des_pos_r_dq).normalize(); 
+	des_n_abs = vec3(des_pos_a_dq.rotation_axis()); des_phi_abs = double(des_pos_a_dq.rotation_angle()); 
+	//des relative pos and rot
+	des_pos_r_dq = (DQ(pose_r_d_)).normalize();
 	des_pos_rel = vec3(des_pos_r_dq.translation()); 
-	
+	des_n_rel = vec3(des_pos_r_dq.rotation_axis()); des_phi_rel = double(des_pos_r_dq.rotation_angle()); 
+
+	//current abs and rel rot
+	n_abs = vec3(pose_abs_dq.rotation_axis()); phi_abs = double(pose_abs_dq.rotation_angle());
+	n_rel = vec3(pose_rel_dq.rotation_axis()); phi_rel = double(pose_rel_dq.rotation_angle());
+
+	//position error
     e_pos_rel = des_pos_rel - pos_rel; 
     e_pos_abs = des_pos_abs - pos_abs; 
 
@@ -691,10 +681,14 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.pos_2[i] = pos_r_(i); 
 		info_debug_msg.er[i] = e_pos_rel(i); 
 		info_debug_msg.ea[i] = e_pos_abs(i); 
+		info_debug_msg.e_n_abs[i] = des_n_abs(i)-n_abs(i); 
+		info_debug_msg.e_n_rel[i] = des_n_rel(i)-n_rel(i); 
 		info_debug_msg.vel[i] = (twist.tail(3))(i); 
-		info_debug_msg.w[i] = (twist.head(3))(i); 
+		info_debug_msg.omega[i] = (twist.head(3))(i); 
 	}
 
+    info_debug_msg.e_phi_abs = des_phi_abs - phi_abs;
+    info_debug_msg.e_phi_rel = des_phi_rel - phi_rel;
 	info_debug_msg.abs_norm = e_pos_abs.norm();
 	info_debug_msg.rel_norm = e_pos_rel.norm();
 

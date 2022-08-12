@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
 ) 
 
 find_package(Eigen3 REQUIRED)
+find_package(ALGLIB REQUIRED)
 find_package(Franka 0.9.0 REQUIRED)
 
 add_message_files(FILES
@@ -91,6 +92,9 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ${catkin_LIBRARIES}
   dqrobotics
 )
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+ALGLIB)
+
 
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   ${Franka_INCLUDE_DIRS}
@@ -169,6 +173,7 @@ target_link_libraries(dual_impedance_loop PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
   dqrobotics
+  ALGLIB
 )
 
 # target_link_libraries(impedance_loop ${PROJECT_NAME})

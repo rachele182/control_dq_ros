@@ -238,7 +238,7 @@ void abs_traj (Vector3d pos_i, double time) {
   Vector3d tmp,pos_f; 
   double t_f,t; 
   double z_c; //contact with object
-  z_c = 0.16;  
+  z_c = 0.14;  
 
   if(time>=0 && time<10){ //go down 
     tmp << pos_i; 
@@ -273,47 +273,50 @@ void dual_traj (Vector3d pos_in_1, Vector3d pos_in_2, double time) {
   Vector3d tmp1,tmp2;
   double t_f, t;  
   Vector3d pos_1_f, pos_2_f; 
+  double z_offset; double y_offset;
+  z_offset = 0.1; //m 
+  y_offset = 0.18; 
 
   if(time>=0 && time<5){ //go down 10 cm
     tmp1 << pos_in_1; 
     tmp2 << pos_in_2;
-    pos_1_f << tmp1(0), tmp1(1), tmp1(2)-0.1; 
-    pos_2_f << tmp2(0), tmp2(1), tmp2(2)-0.1; 
+    pos_1_f << tmp1(0), tmp1(1), tmp1(2) - z_offset; 
+    pos_2_f << tmp2(0), tmp2(1), tmp2(2)- z_offset; 
     t_f = 5; 
     t = time;
   }else if (time>=5 && time<7){ //pause
-    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)-0.1; 
+    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)- z_offset; 
+    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)- z_offset; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     t_f = 2;
     t = time - 5; 
   }else if (time>=7 && time<12){ //come closer
-    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)-0.1; 
-    pos_1_f << pos_in_1(0), pos_in_1(1)-0.15, pos_in_1(2)-0.1; 
-    pos_2_f << pos_in_2(0), pos_in_2(1)+ 0.15, pos_in_2(2)-0.1;
+    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)-z_offset; 
+    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)-z_offset; 
+    pos_1_f << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2)-z_offset; 
+    pos_2_f << pos_in_2(0), pos_in_2(1)+ y_offset, pos_in_2(2)-z_offset;
     t_f = 5;
     t = time - 7; 
   }else if (time>=12 && time<14){ //pause
-    tmp1 << pos_in_1(0), pos_in_1(1)-0.15, pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1)+0.15, pos_in_2(2)-0.1; 
+    tmp1 << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2)-z_offset; 
+    tmp2 << pos_in_2(0), pos_in_2(1)+y_offset, pos_in_2(2)-z_offset; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     t_f = 2;
     t = time - 12; 
   }else if (time>=14 && time<19){ //go back again
-    tmp1 << pos_in_1(0), pos_in_1(1)-0.15, pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1)+0.15, pos_in_2(2)-0.1;
-    pos_1_f << tmp1(0), tmp1(1)+0.15, tmp1(2); 
-    pos_2_f << tmp2(0), tmp2(1)-0.15, tmp2(2);
+    tmp1 << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2)-z_offset; 
+    tmp2 << pos_in_2(0), pos_in_2(1)+y_offset, pos_in_2(2)-z_offset;
+    pos_1_f << tmp1(0), tmp1(1)+y_offset, tmp1(2); 
+    pos_2_f << tmp2(0), tmp2(1)-y_offset, tmp2(2);
     t_f = 5;
     t = time - 14; 
   }else if (time>=19 && time<24){ //go up again
-    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)-0.1; 
-    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)-0.1;
-    pos_1_f << tmp1(0), tmp1(1), tmp1(2)+0.1; 
-    pos_2_f << tmp2(0), tmp2(1), tmp2(2)+0.1;
+    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2)-z_offset; 
+    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2)-z_offset;
+    pos_1_f << tmp1(0), tmp1(1), tmp1(2)+z_offset; 
+    pos_2_f << tmp2(0), tmp2(1), tmp2(2)+z_offset;
     t_f = 5; 
     t = time - 19; 
   }else { // eq phase
