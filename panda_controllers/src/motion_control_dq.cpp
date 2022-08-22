@@ -14,7 +14,7 @@
 #include <ros/ros.h>
 
 #include "utils/pseudo_inversion.h"
-// #include "utils/lowpass_filter.h"
+
 
 using DQ_robotics::DQ_SerialManipulator;
 using DQ_robotics::E_;
@@ -265,10 +265,11 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Matrix<double, 7, 8> Jp_inv;     // pose jacobian pseudo-inverse 7x8
 	Matrix<double, 8, 7> Jp_dot;     // pose derivative jacobian 8*7
     
-	// Franka
+	// Franka Dynamics
 	franka::RobotState robot_state = state_handle_->getRobotState();        // robot state
 	std::array<double, 49> mass_array = model_handle_->getMass();			// mass matrix array
 	std::array<double, 7> coriolis_array = model_handle_->getCoriolis();	// coriolis vector
+
 
 	// Eigen conversion
 	Map<Matrix<double, 7, 7> > mass(mass_array.data());                      // mass matrix [kg]

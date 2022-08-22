@@ -8,15 +8,18 @@
 #include "dqrobotics/robot_modeling/DQ_SerialManipulator.h"
 #include "dqrobotics/utils/DQ_LinearAlgebra.h"
 #include <dqrobotics/robot_modeling/DQ_CooperativeDualTaskSpace.h>
-
+// FRANKA model
+#include <panda_controllers/Dynamics.h>
 #include <controller_interface/controller_base.h>
 #include <franka/robot_state.h>
 #include <franka_hw/trigger_rate.h>
 #include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_loader.h>
 #include <ros/transport_hints.h>
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
 #include <ros/ros.h>
+#include <Eigen/Dense>
 #include <eigen_conversions/eigen_msg.h>
 
 
@@ -25,12 +28,10 @@ using DQ_robotics::DQ_Kinematics;
 using DQ_robotics::DQ_SerialManipulator;
 using DQ_robotics::DQ_CooperativeDualTaskSpace;
 using DQ_robotics::E_;
-using DQ_robotics::i_;
-using DQ_robotics::j_;
-using DQ_robotics::k_;
 using DQ_robotics::C8;
 
 using namespace DQ_robotics;
+
 
 #define 	KP			    180   // proportional gain motion controller
 #define 	KD			    30    // derivative gain motion controller
@@ -42,10 +43,7 @@ using namespace DQ_robotics;
 #define 	NULL_STIFF		2
 #define 	JOINT_STIFF		{3000, 3000, 3000, 3000, 3000, 2000, 100}
 
-//Set base frame two arms from calibration
-
 namespace panda_controllers {
-
 
 // ---------- DQ_SERIAL_MANIPULATOR PANDA ROBOT ------- //
 DQ_SerialManipulator DualArmControl::init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O,double EE_offset) {
@@ -462,6 +460,14 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	
 	std::array<double, 49> mass_array_left = arms_data_.at(left_arm_id_).model_handle_->getMass();
 	std::array<double, 7>  coriolis_array_left = arms_data_.at(left_arm_id_).model_handle_->getCoriolis();
+
+	//----------DYNAMICS MODEL MARIO------------//
+	Eigen::VectorXd Xb(59);
+    Xb << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
+    Dynamics dyn(M_PI, 0, Xb); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
+    MatrixXd mass_mario; MatrixXd coriolis_mario; 
+	mass_mario = dyn.get_M(q_r); 
+	std::cout << "mass_mario " << mass_mario << std::endl; 
 	
 	// Eigen conversion
 	Map<Matrix<double, 7, 7> > m1(mass_array_left.data());                      // mass matrix [kg]
@@ -469,6 +475,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Map<Matrix<double, 7, 1> > c1(coriolis_array_left.data());                 // coriolis forces  [Nm]
 	Map<Matrix<double, 7, 1> > c2(coriolis_array_right.data());    
     
+	std::cout << "mass " << m2 << std::endl; 
+
 	Ma.block(0,0,7,7) << m1;
 	Ma.block(7,7,7,7) << m2;
 

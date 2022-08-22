@@ -75,6 +75,7 @@ add_library(${PROJECT_NAME}
   #src/dq_trajectory.cpp #trajectory
   # src/impedance_loop.cpp
   # src/commands.cpp
+  src/Dynamics.cpp
   src/parsing_utilities.cpp #util for yaml parameters
 ) 
 
@@ -92,9 +93,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ${catkin_LIBRARIES}
   dqrobotics
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE 
-ALGLIB)
-
 
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   ${Franka_INCLUDE_DIRS}

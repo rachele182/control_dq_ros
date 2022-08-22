@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <Eigen/Dense>
 // ROS
 #include <ros/ros.h>
 #include <ros/node_handle.h>
@@ -13,6 +14,8 @@
 #include <dqrobotics/robot_modeling/DQ_Kinematics.h>
 #include <dqrobotics/robot_modeling/DQ_SerialManipulator.h>
 #include <dqrobotics/robot_modeling/DQ_CooperativeDualTaskSpace.h>
+// FRANKA model
+#include <panda_controllers/Dynamics.h>
 // FRANKA ROS
 #include <controller_interface/multi_interface_controller.h>
 #include <franka_hw/franka_model_interface.h>
@@ -47,10 +50,7 @@ typedef Matrix<double, 16, 1> Vector16d;
 typedef Matrix<double, 14, 1> Vector14d;
 
 using namespace DQ_robotics;
-using DQ_robotics::DQ;
-using DQ_robotics::DQ_Kinematics;
-using DQ_robotics::DQ_SerialManipulator;
-using DQ_robotics::DQ_CooperativeDualTaskSpace;
+using DQ_robotics::DQ; using DQ_robotics::DQ_Kinematics; using DQ_robotics::DQ_SerialManipulator; using DQ_robotics::DQ_CooperativeDualTaskSpace;
 
 namespace panda_controllers {
 
@@ -178,12 +178,11 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		Matrix<double, 8, 1> dpose_a_d_;                   // desired absolute velocity
 		Matrix<double, 8, 1> ddpose_a_d_;                  // desired absolute acceleration 
 		Matrix<double, 7, 1> q_nullspace_;                 // qdes null-space 
-		
         Matrix<double, 8, 8> I8;                           
 		Matrix<double, 7, 7> I7;
 		Matrix<double, 16, 16> I16;
 	    
-		
+	
 		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_compl_traj_proj_;
 		void CompliantTrajCallback(const panda_controllers::CompliantTraj::ConstPtr& msg);
