@@ -138,30 +138,36 @@ int demo_int_traj (Vector3d pos_i, double time) {
   double z_int;
   int phase; 
   phase = 0; 
-  z_int = 0.12; 
+  z_int = 0.08; 
   Vector3d pos_f;
 
-  if(time>=0 && time<10){ // go down
+  if(time>=0 && time<7){ // go down
     tmp << pos_i; 
     pos_f << pos_i(0), pos_i(1), z_int; 
-    t_f = 10; 
+    t_f = 7; 
     t = time;
-  }else if (time>=10 && time<12){
+  }else if (time>=7 && time<9){ //puase
     tmp << pos_i(0), pos_i(1), z_int; 
     pos_f << tmp;
     t_f = 2; 
-    t = time - 10; 
-  }else if (time>=12 && time<22){ //go up
+    t = time - 2; 
+  }else if (time>=9 && time<14){ //sliding 
     tmp << pos_i(0), pos_i(1), z_int; 
+    pos_f << pos_i(0), pos_i(1)-0.1, z_int; 
+    t_f = 5;
+    t = time - 9; 
+    phase = 1; 
+  }else if (time>=14 && time<19){ //go up and back
+    tmp << pos_i(0), pos_i(1)-0.1, z_int; 
     pos_f << pos_i(0), pos_i(1), pos_i(2); 
-    t_f = 10;
-    t = time - 12; 
+    t_f = 5;
+    t = time - 14; 
     phase = 1; 
   }else {
     tmp << pos_i(0), pos_i(1),  pos_i(2); 
     pos_f << tmp;
     t_f = 1000; 
-    t = time - 22;  
+    t = time - 19;  
     phase = 1; 
   }
    traj_t.p_des << tmp + (tmp - pos_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
@@ -495,10 +501,12 @@ int main(int argc, char **argv)
       cin>>tf;   
     }else if (choice == 4){
       tf = 30; 
-      cout<< "loading traj for absolute pose.."<<endl; 
+      cout<< "dual_arm_control? (0:no 1:yes)"<<endl; 
+      cin >> dual; 
     }else if(choice == 5){
       tf = 40;
-      cout<< "loading dual trajectory..."<< endl; 
+      cout<< "dual_arm_control? (0:no 1:yes)"<<endl; 
+      cin >> dual; 
     }
 
     ros::spinOnce();

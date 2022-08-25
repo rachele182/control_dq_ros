@@ -152,6 +152,8 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		const double delta_tau_max_{1.0};                  // torque rate limit [Nm/ms], from datasheet https://frankaemika.github.io/docs/control_parameters.html
 		Vector6d wrench_ext_l;                             // external wrench left arm
 		Vector6d wrench_ext_r;  						   // external wrench right arm
+		Vector7d initial_tau_ext_l;  
+		Vector7d initial_tau_ext_r;  
 		DQ p_curr_dq; 								       // current position
 		DQ or_curr_dq;                                     // current orientation     
 		Vector14d q_in;                                    //Initial augmented joint configuration      
@@ -181,7 +183,18 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
         Matrix<double, 8, 8> I8;                           
 		Matrix<double, 7, 7> I7;
 		Matrix<double, 16, 16> I16;
+	    //Momentum observer Variables
+		Matrix<double, 7, 7> Ko; //observer gain
+		Vector7d r_l;  //observer output
+		Vector7d pl_dot_hat;
+		Vector7d pl_int_hat; 
+		Vector7d p0_l;  
+		Vector7d r_r;  //observer output
+		Vector7d pr_dot_hat;
+		Vector7d pr_int_hat; 
+		Vector7d p0_r;  
 		int count; 
+	
 
 	
 		//----------SUBSCRIBERS----------//

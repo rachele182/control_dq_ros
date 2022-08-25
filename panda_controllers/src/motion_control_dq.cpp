@@ -228,9 +228,13 @@ void MotionControlDq::starting(const ros::Time& /*time*/) {
 
 	//initialize momentum observe variables
 	MatrixXd mass_in, g_in;  
+	//RIGHT ARM
 	VectorXd Xb_r(59);
-    Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
-    Dynamics dyn(M_PI, 0, Xb_r); 
+    // Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
+    // Dynamics dyn(M_PI, 0, Xb_r); 
+	//LEFT ARM
+	Xb_r << -0.019192,-0.042824,-0.0062658,1.1252,-0.020055,0.019578,0.0049405,1.0521,0.026847,-3.3944,-0.049896,-0.037687,-0.065023,0.0059343,0.10435,0.73491,-0.013803,0.68913,0.1672,-0.003197,-0.020511,0.7974,-0.57382,1.9989,0.0064197,0.0090873,-0.0023897,-0.003731,0.040557,0.014286,0.10239,0.028012,0.033043,-0.002575,0.0015047,0.035974,0.24453,-0.20521,-0.030844,0.0089453,0.020859,-0.0064082,-0.01723,-0.0031279,0.012438,-0.060215,-0.068558,-0.057596,-0.024093,0.27214,0.17681,-0.011581,0.60558,0.30944,0.33912,0.21997,0.18749,0.35522,0.23904;
+    Dynamics dyn(M_PI_2, M_PI_2, Xb_r); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
 	mass_in = dyn.get_M(q_in); g_in = dyn.get_tau_G(q_in); 
 	p0 = mass_in*dq_in; 
 	r.setZero();
@@ -273,19 +277,21 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Matrix<double, 8, 7> Jp_d;       // pose jacobian 8x7
 	Matrix<double, 7, 8> Jp_inv;     // pose jacobian pseudo-inverse 7x8
 	Matrix<double, 8, 7> Jp_dot;     // pose derivative jacobian 8*7
-	Matrix<double, 7, 6> Jg_t; 
+	Matrix<double, 7, 6> Jg_t;       // transpose of geometric jacobian
     
 	// ===== Franka Dynamics ===== //
 	franka::RobotState robot_state = state_handle_->getRobotState();        // robot state
 	std::array<double, 49> mass_array = model_handle_->getMass();			// mass matrix array
 	std::array<double, 7> coriolis_array = model_handle_->getCoriolis();	// coriolis vector
 	std::array<double, 7>  gravity_array = model_handle_->getGravity(); 
+	std::array<double, 7>  gravity_array_w_EE = model_handle_->getGravity({ {0., 9.81, 0.}}); 
 	std::array<double, 42> jacobian_array = model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
 	// Eigen conversion
 	Map<Matrix<double, 7, 7> > mass(mass_array.data());                      // mass matrix [kg]
 	Map<Matrix<double, 7, 1> > coriolis(coriolis_array.data());              // coriolis forces  [Nm]
 	Map<Matrix<double, 7, 1> > gravity(gravity_array.data());                // gravity forces  [Nm]
+	Map<Matrix<double, 7, 1> > gravity_w_EE(gravity_array_w_EE.data());                // gravity forces  [Nm]
 	Map<Matrix<double, 6, 7> > Jg(jacobian_array.data());                    //   [Nm]
 	Map<Matrix<double, 7, 1> > q(robot_state.q.data());                      // joint positions  [rad]
 	Map<Matrix<double, 7, 1> > dq(robot_state.dq.data());                    // joint velocities [rad/s]
@@ -317,10 +323,16 @@ DQ_SerialManipulator robot = init_dq_robot();
 	pose = vec8(pose_util);
 	pos = vec3(pose_util.translation()); 
 
+
 	// ==============  DYNAMIC MODEL MARIO RIGHT ARM (NO EE) =============//
 	VectorXd Xb_r(59);
-    Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
-    Dynamics dyn(M_PI, 0, Xb_r); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
+    // Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
+    // Dynamics dyn(M_PI, 0, Xb_r); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
+
+	// ==============  DYNAMIC MODEL MARIO LEFT ARM (WITH EE) =============//
+	Xb_r << -0.019192,-0.042824,-0.0062658,1.1252,-0.020055,0.019578,0.0049405,1.0521,0.026847,-3.3944,-0.049896,-0.037687,-0.065023,0.0059343,0.10435,0.73491,-0.013803,0.68913,0.1672,-0.003197,-0.020511,0.7974,-0.57382,1.9989,0.0064197,0.0090873,-0.0023897,-0.003731,0.040557,0.014286,0.10239,0.028012,0.033043,-0.002575,0.0015047,0.035974,0.24453,-0.20521,-0.030844,0.0089453,0.020859,-0.0064082,-0.01723,-0.0031279,0.012438,-0.060215,-0.068558,-0.057596,-0.024093,0.27214,0.17681,-0.011581,0.60558,0.30944,0.33912,0.21997,0.18749,0.35522,0.23904;
+    Dynamics dyn(M_PI_2, M_PI_2, Xb_r); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
+
     MatrixXd m_mario; MatrixXd c_mario; MatrixXd g_mario; MatrixXd friction_mario; MatrixXd tau_model_mario;
 	m_mario = dyn.get_M(q); c_mario = dyn.get_C(q,dq); g_mario = dyn.get_tau_G(q); friction_mario = dyn.get_tau_F(dq); 
 	tau_model_mario = dyn.get_tau_model(q,dq,ddq); 
@@ -381,10 +393,12 @@ DQ_SerialManipulator robot = init_dq_robot();
     y << Jp_inv*ax;
 
 	//---------------- CONTROL COMPUTATION -----------------//
-	
 	// tau_task << coriolis + mass*y;  // 
 
-	tau_task << c_mario*dq + m_mario*y + 0*friction_mario +  g_mario - gravity; 
+	// tau_task << c_mario*dq + m_mario*y + 0*friction_mario +  g_mario - gravity; 
+
+	//Left ARM with EE
+	tau_task << c_mario*dq + m_mario*y + 0*friction_mario +  g_mario - gravity_w_EE; 
 	
 	//---------------- NULLSPACE CONTROL COMPUTATION -----------------//
     
@@ -420,7 +434,7 @@ DQ_SerialManipulator robot = init_dq_robot();
 
 	 // =============  Estimation of tau ext (with momentum observer) ======= //
 	Vector7d beta; 
-	Matrix<double,7,7>C_t;
+	Matrix<double,7,7> C_t;
 	C_t = c_mario.transpose(); 
 	Ko = KO*I7; 
 
@@ -532,17 +546,17 @@ Vector7d MotionControlDq::Filter(Vector7d ddq_filt, Vector7d ddq){
 
 void MotionControlDq::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
-	// pose_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
-	// dpose_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
-	// ddpose_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
+	pose_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
+	dpose_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
+	ddpose_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
  } 
 
 // //----------- DESIRED COMPLIANT TRAJECTORY -------------//
 void MotionControlDq::CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
-	pose_d_ << msg->pose_c[0], msg->pose_c[1], msg->pose_c[2],msg->pose_c[3],msg->pose_c[4],msg->pose_c[5],msg->pose_c[6],msg->pose_c[7];		
-	dpose_d_ << msg->dpose_c[0], msg->dpose_c[1], msg->dpose_c[2],msg->dpose_c[3],msg->dpose_c[4],msg->dpose_c[5],msg->dpose_c[6],msg->dpose_c[7];	
-	ddpose_d_ << msg->ddpose_c[0], msg->ddpose_c[1], msg->ddpose_c[2],msg->ddpose_c[3],msg->ddpose_c[4],msg->ddpose_c[5],msg->ddpose_c[6],msg->ddpose_c[7];	
+	// pose_d_ << msg->pose_c[0], msg->pose_c[1], msg->pose_c[2],msg->pose_c[3],msg->pose_c[4],msg->pose_c[5],msg->pose_c[6],msg->pose_c[7];		
+	// dpose_d_ << msg->dpose_c[0], msg->dpose_c[1], msg->dpose_c[2],msg->dpose_c[3],msg->dpose_c[4],msg->dpose_c[5],msg->dpose_c[6],msg->dpose_c[7];	
+	// ddpose_d_ << msg->ddpose_c[0], msg->ddpose_c[1], msg->ddpose_c[2],msg->ddpose_c[3],msg->ddpose_c[4],msg->ddpose_c[5],msg->ddpose_c[6],msg->ddpose_c[7];	
  } 
  
 
