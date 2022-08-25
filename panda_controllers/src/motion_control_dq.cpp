@@ -2,34 +2,30 @@
 #include <math.h>
 #include <memory>
 #include <panda_controllers/motion_control_dq.h>
-
+//DQ robotics 
 #include "dqrobotics/DQ.h"
 #include "dqrobotics/robot_modeling/DQ_SerialManipulator.h"
 #include "dqrobotics/utils/DQ_LinearAlgebra.h"
-
+//Franka interface
 #include <controller_interface/controller_base.h>
 #include <franka/robot_state.h>
 #include <franka_hw/trigger_rate.h>
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
-
-#include "utils/pseudo_inversion.h"
-
+#include <panda_controllers/Dynamics.h>
 
 using DQ_robotics::DQ_SerialManipulator;
 using DQ_robotics::E_;
-using DQ_robotics::i_;
-using DQ_robotics::j_;
-using DQ_robotics::k_;
 using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    100  // proportional gain motion controller
-#define 	KD			    20   // derivative gain motion controller
-#define     KI              50   // integrative term 
-#define 	D_JOINTS	    2    // dissipative term joints
-#define 	COLL_LIMIT		25   // 
+#define 	KP			    80  	// proportional gain motion controller
+#define 	KD			    20   	// derivative gain motion controller
+#define     KI              50   	// integrative term 
+#define 	KO			    4  	    // gain momentum observer
+#define 	D_JOINTS	    2    	// dissipative term joints
+#define 	COLL_LIMIT		25   	// 
 #define 	NULL_STIFF		2
 #define 	JOINT_STIFF		{3000, 3000, 3000, 3000, 3000, 2000, 100}
 
@@ -157,7 +153,6 @@ bool MotionControlDq::init( hardware_interface::RobotHW* robot_hw,
 		}
 	}
     
-    
 	//---------------- INITIALIZE VARIABLES ------------------//
 
 	pose_d_.setZero();                  	      	// desired pose
@@ -167,6 +162,8 @@ bool MotionControlDq::init( hardware_interface::RobotHW* robot_hw,
 	dpose_n_.setZero();                          	// nominal des velocity
 	ddpose_n_.setZero();                        	// nominal des acceleration
 	wrench_ext.setZero();                           // external wrench EE frame
+	q_old.setZero(); 
+	dq_old.setZero(); 
 	tau_limit << 87, 87, 87, 87, 12, 12, 12;  		// joint torques limit vector
 
 	// Collision behaviours limits
@@ -189,7 +186,6 @@ bool MotionControlDq::init( hardware_interface::RobotHW* robot_hw,
 //                          	  STARTING										//
 //------------------------------------------------------------------------------//
 
- 
 
 void MotionControlDq::starting(const ros::Time& /*time*/) {
   
@@ -197,8 +193,10 @@ void MotionControlDq::starting(const ros::Time& /*time*/) {
 	Map<Matrix<double, 7, 1> > q_initial(initial_state.q.data()); // intiial joint positions  [rad]
 	Map<Matrix<double, 7, 1> > dq_initial(initial_state.dq.data()); // initial joint velocities [rad/s]
     Affine3d initial_transform(Matrix4d::Map(initial_state.O_T_EE.data()));
-
-
+	Map<Matrix<double, 7, 1>> initial_tau_measured(initial_state.tau_J.data());
+	std::array<double, 7> gravity_array = model_handle_->getGravity(); 
+	Map<Matrix<double, 7, 1>> initial_gravity(gravity_array.data());
+	
 	// Initial position and orientation
 	position_d_ = initial_transform.translation();
 	orientation_d_ = Quaterniond(initial_transform.linear());
@@ -207,12 +205,14 @@ void MotionControlDq::starting(const ros::Time& /*time*/) {
 	// Load Panda robot
 	DQ_SerialManipulator robot = init_dq_robot();
 
-	// set equilibrium point to current state
+	//initial joint positions and velocites
+	q_in = q_initial; dq_in = dq_initial; 
+	
+	// Set equilibrium point to current state
 	DQ pose_d_dq;  
 	pose_d_dq = DQ(or_d_) + 0.5*E_*(DQ(position_d_)*DQ(or_d_)); 
 	pose_d_dq = pose_d_dq.normalize();
-	pose_d_ = vec8(pose_d_dq); 
-	pose_n_ = vec8(pose_d_dq); 
+	pose_d_ = vec8(pose_d_dq); pose_n_ = vec8(pose_d_dq); 
 
 	// set nullspace equilibrium configuration to central angles of joints
 	Matrix <double, 7, 1> q_min;
@@ -223,9 +223,22 @@ void MotionControlDq::starting(const ros::Time& /*time*/) {
 
 	// set collision behaviour
 	collBehaviourClient.call(collBehaviourSrvMsg);
-
 	// set joint impedance
 	jointImpedanceClient.call(jointImpedanceSrvMsg);
+
+	//initialize momentum observe variables
+	MatrixXd mass_in, g_in;  
+	VectorXd Xb_r(59);
+    Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
+    Dynamics dyn(M_PI, 0, Xb_r); 
+	mass_in = dyn.get_M(q_in); g_in = dyn.get_tau_G(q_in); 
+	p0 = mass_in*dq_in; 
+	r.setZero();
+	p_int_hat.setZero(); 
+
+	// bias torque sensor
+	initial_tau_ext = initial_tau_measured - g_in;
+	count = 0;
  }
 
 // //------------------------------------------------------------------------------//
@@ -244,59 +257,75 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Vector8d derror; 		         // pose vel. error  8x1
 	Vector8d error_i;                // integrative term error 8x1
 	Vector3d pos_error;              // position error 3x1
-	Vector8d xe;                     // pose displacement                  
-	Vector8d dxe;                    // derivative of pose displacement
-	Vector8d pose;       	         // current pose 8x1
-	Vector8d dpose;			         // current velocity 8x1
+	Vector8d xe,dxe;                 // pose displacement
+	Vector8d pose,dpose;        	 // current pose and dpose 8x1
 	Vector3d pos;                    // current computed EE position 3x1
-	Vector8d pose_d_conj;   
-	Vector8d dpose_d_conj;             
-	Vector8d ddpose_d_conj; 
-	DQ pos_d_dq; 
-	DQ pose_util; 
-	                               
+	Vector8d pose_d_conj,dpose_d_conj,ddpose_d_conj; 
+	DQ pos_d_dq,pose_util; 
+	I8 = MatrixXd::Identity(8, 8); I7 = MatrixXd::Identity(7, 7);
+	
 	// for debug, clean later
-	Vector4d rot_check;            
-	DQ rot_check_dq; 
+	Vector4d rot_check; DQ rot_check_dq; 
+	Vector7d ddq_filt; Vector7d ddq_last; 
 
-	// Panda utils
+	// Jacobian matrices
     Matrix<double, 8, 7> Jp;         // pose jacobian 8x7
 	Matrix<double, 8, 7> Jp_d;       // pose jacobian 8x7
 	Matrix<double, 7, 8> Jp_inv;     // pose jacobian pseudo-inverse 7x8
 	Matrix<double, 8, 7> Jp_dot;     // pose derivative jacobian 8*7
+	Matrix<double, 7, 6> Jg_t; 
     
-	// Franka Dynamics
+	// ===== Franka Dynamics ===== //
 	franka::RobotState robot_state = state_handle_->getRobotState();        // robot state
 	std::array<double, 49> mass_array = model_handle_->getMass();			// mass matrix array
 	std::array<double, 7> coriolis_array = model_handle_->getCoriolis();	// coriolis vector
-
+	std::array<double, 7>  gravity_array = model_handle_->getGravity(); 
+	std::array<double, 42> jacobian_array = model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
 	// Eigen conversion
 	Map<Matrix<double, 7, 7> > mass(mass_array.data());                      // mass matrix [kg]
 	Map<Matrix<double, 7, 1> > coriolis(coriolis_array.data());              // coriolis forces  [Nm]
+	Map<Matrix<double, 7, 1> > gravity(gravity_array.data());                // gravity forces  [Nm]
+	Map<Matrix<double, 6, 7> > Jg(jacobian_array.data());                    //   [Nm]
 	Map<Matrix<double, 7, 1> > q(robot_state.q.data());                      // joint positions  [rad]
 	Map<Matrix<double, 7, 1> > dq(robot_state.dq.data());                    // joint velocities [rad/s]
+	Map<Matrix<double, 7, 1> > tau_J(robot_state.tau_J.data());              // measured torques [Nm]
 	Map<Matrix<double, 7, 1> > tau_J_d(robot_state.tau_J_d.data());          // previous cycle commanded torques [Nm]
 	Map<Matrix<double, 6, 1> > wrench_ext(robot_state.O_F_ext_hat_K.data()); // external wrench [N] wrt base frame
+	Affine3d transform(Matrix4d::Map(robot_state.O_T_EE.data()));       	 // ee-base homog. transf. matrix
+	Vector3d position(transform.translation());                         	 // ee-base position [m]
+	Quaterniond orientation(transform.linear());                       		 // ee-base orientation
+	Jg_t = Jg.transpose(); 
 
-	Affine3d transform(Matrix4d::Map(robot_state.O_T_EE.data()));       // ee-base homog. transf. matrix
-	Vector3d position(transform.translation());                         // ee-base position [m]
-	Quaterniond orientation(transform.linear());                        // ee-base orientation
+	//compute joint accelerations
+	if(count==0){
+		ddq_last.setZero();
+		ddq_filt.setZero(); 
+		ddq.setZero(); 
+	}else{
+		ddq_last = ddq_filt; 
+		ddq = (dq - dq_old)/(period.toSec()); 
+		ddq_filt = Filter(ddq_last,ddq); 
+	}
 	
 	// get current state
 	rot_check << orientation.w(),orientation.x(),orientation.y(),orientation.z();
     rot_check_dq = DQ(rot_check);
 	pose_util = rot_check_dq + 0.5*E_*(DQ(position)*rot_check_dq); 
 	pose_util = pose_util.normalize(); 
-
 	//current EE Pose
 	pose = vec8(pose_util);
 	pos = vec3(pose_util.translation()); 
-	
-// ----------------------------------------------------
 
-// 	 GET JACOBIANS
+	// ==============  DYNAMIC MODEL MARIO RIGHT ARM (NO EE) =============//
+	VectorXd Xb_r(59);
+    Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
+    Dynamics dyn(M_PI, 0, Xb_r); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
+    MatrixXd m_mario; MatrixXd c_mario; MatrixXd g_mario; MatrixXd friction_mario; MatrixXd tau_model_mario;
+	m_mario = dyn.get_M(q); c_mario = dyn.get_C(q,dq); g_mario = dyn.get_tau_G(q); friction_mario = dyn.get_tau_F(dq); 
+	tau_model_mario = dyn.get_tau_model(q,dq,ddq); 
 
+// 	Get Jacobians 
 	Jp << robot.pose_jacobian(q); 
 	Jp_dot << robot.pose_jacobian_derivative(q,dq); 
 	dpose << Jp*dq; 
@@ -305,37 +334,29 @@ DQ_SerialManipulator robot = init_dq_robot();
 
 	robot_state_msg.header.stamp = ros::Time::now();
 	std::copy(mass_array.begin(), mass_array.end(), robot_state_msg.mass_matrix.begin());
-
 	pub_robot_state_.publish(robot_state_msg);
 
 	//----------- COMPUTE ERRORS -------------//
 	
-	xe << pose_d_ - pose;
-	dxe << dpose_d_ - dpose;
+	xe << pose_d_ - pose; dxe << dpose_d_ - dpose;
 
-	// DQ current and desired pose
-	DQ pose_d_dq = DQ(pose_d_); 
-	pose_d_dq = pose_d_dq.normalize();
-	DQ pose_dq = DQ(pose); 
-	pose_dq = pose_dq.normalize(); 
-
-	pose_d_conj = C8()*pose_d_; 
-	dpose_d_conj = C8()*dpose_d_; 
-	ddpose_d_conj =  C8()*ddpose_d_; 
+	// DQ desired and pose
+	DQ pose_d_dq = (DQ(pose_d_)).normalize(); 
+	DQ pose_dq = (DQ(pose)).normalize(); 
+	
+	pose_d_conj = C8()*pose_d_;  dpose_d_conj = C8()*dpose_d_; ddpose_d_conj =  C8()*ddpose_d_; 
 
 	// Invariant error definition 
-
 	error << haminus8(DQ(pose_d_conj))*xe; 
 	derror << haminus8(DQ(dpose_d_conj))*xe + haminus8(DQ(pose_d_conj))*dxe;
 	error_i << error + derror*period.toSec();
 
-	// pos_error << pose_d_dq.translation().q.segment(1, 3) - pose_dq.translation().q.segment(1, 3);
 	pos_error << vec3(pose_d_dq.translation()) - vec3(pose_dq.translation());
-
-
-
+	double norm; 
+	norm = pos_error.norm(); 
 // 	//======================| CONTROL VARIABLES |======================//
     
+	Vector6d wrench_ext_model,wrench_ext_hat; 
 	Matrix <double, 8, 1> yd;               // desired cl dyanmics
 	Matrix <double, 8, 1> ax;               // input task-space
 	Matrix <double, 7, 1> y;         	    // controller new input 
@@ -343,9 +364,7 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Matrix <double, 7, 1> tau_nullspace;	// tau for nullspace task
 	Matrix <double, 7, 1> tau_d;			// final desired torque	
 	Matrix <double, 7, 7> N;				// null projector
-
-	I8 = MatrixXd::Identity(8, 8);
-	I7 = MatrixXd::Identity(7, 7);
+	
     
 	// Desired closed-loop dynamics
 	yd << KP*I8*error + KD*I8*derror + 0*KI*error_i; 
@@ -363,7 +382,9 @@ DQ_SerialManipulator robot = init_dq_robot();
 
 	//---------------- CONTROL COMPUTATION -----------------//
 	
-	tau_task << coriolis + mass*y;  // +g (already compensated)
+	// tau_task << coriolis + mass*y;  // 
+
+	tau_task << c_mario*dq + m_mario*y + 0*friction_mario +  g_mario - gravity; 
 	
 	//---------------- NULLSPACE CONTROL COMPUTATION -----------------//
     
@@ -376,7 +397,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 // 	//----------------- FINAL CONTROL --------------------------------//
 	
 	tau_d << tau_task + tau_nullspace; 
-
 	
 // 	//=================================| END CONTROL |==================================//
 	
@@ -393,12 +413,33 @@ DQ_SerialManipulator robot = init_dq_robot();
 			tau_d = tau_d / ith_torque_rate;
 	}
 
-
 	//set arm command torques
 	for (size_t i = 0; i < 7; ++i) {
 		joint_handles_[i].setCommand(tau_d(i));
 	}
 
+	 // =============  Estimation of tau ext (with momentum observer) ======= //
+	Vector7d beta; 
+	Matrix<double,7,7>C_t;
+	C_t = c_mario.transpose(); 
+	Ko = KO*I7; 
+
+	if(count==0){
+		p_int_hat.setZero();
+		r.setZero(); //initial guess for momentum observer output
+	}else{
+		beta = (g_mario) - C_t*dq;
+		tau_J = tau_J - initial_tau_ext; //remove torque sensor bias
+		p_dot_hat = tau_J - beta + r;
+		//integrate  
+		p_int_hat  = p_dot_hat*(period.toSec()) + p_int_hat;
+		r = Ko*(m_mario*dq - p_int_hat - p0); 
+	}
+
+		// ============MODEL OF EXT FORCES =================//
+	wrench_ext_model = pinv(Jg_t)*(tau_J- initial_tau_ext - tau_model_mario); 
+	wrench_ext_hat = pinv(Jg_t)*r; 
+	
 	//======================| PUBISH & SUBSCRIBE |======================//
 
 	//----------- DEBUG MSG -------------//
@@ -406,25 +447,31 @@ DQ_SerialManipulator robot = init_dq_robot();
 	// ----------- COMMANDED TORQUES and EXTERNAL FORCES -------------//
 
 	for(int i=0; i<7;i++){
-		info_debug_msg.tau_d[i] = tau_d(i);
 		info_debug_msg.tau_null[i] = tau_nullspace(i);
 		info_debug_msg.tau_task[i] = tau_task(i);
+		info_debug_msg.tau_model[i] = tau_model_mario(i);
+		info_debug_msg.tau_measured[i] = tau_J(i)-g_mario(i);
+		info_debug_msg.q[i] = q(i);
+		info_debug_msg.ddq[i] = ddq(i);
+		info_debug_msg.dq[i] = dq(i);
+		info_debug_msg.ddq_filt[i] = ddq_filt(i);
+		info_debug_msg.r[i] = r(i);
 	}
+
+	info_debug_msg.norm = norm; 
 
 	for(int i=0; i<6;i++){
 		info_debug_msg.wrench_ext[i] = - wrench_ext(i); 
+		info_debug_msg.f_ext_model[i] = wrench_ext_model(i); 
+		info_debug_msg.f_ext_hat[i] = wrench_ext_hat(i); 
 	}
     
-
-// 	//----------- POSITION ERROR -------------//
+// 	//----------- CURRENT POSITION -------------//
 
 	info_debug_msg.header.stamp = ros::Time::now();
 	info_debug_msg.pos_curr[0] = pos(0); // position error x-axis
 	info_debug_msg.pos_curr[1] = pos(1); // position error y-axis
 	info_debug_msg.pos_curr[2] = pos(2); // position error z-axis
-	info_debug_msg.pos_error[0] = pos_error(0); // position error x-axis
-	info_debug_msg.pos_error[1] = pos_error(1); // position error y-axis
-	info_debug_msg.pos_error[2] = pos_error(2); // position error z-axis
 
  	pub_info_debug.publish(info_debug_msg);
 
@@ -445,6 +492,10 @@ DQ_SerialManipulator robot = init_dq_robot();
 
 	pub_endeffector_pose_.publish(position_endeff);
 
+	count = count+1; 
+	q_old = q; 
+	dq_old = dq;
+
 }
 
 // //---------------------------------------------------------------//
@@ -462,6 +513,17 @@ DQ_SerialManipulator robot = init_dq_robot();
  	return tau_d_saturated;
  }
 
+Vector7d MotionControlDq::Filter(Vector7d ddq_filt, Vector7d ddq){  
+  double gain; 
+  gain = 0.8; 
+  for(int i = 0; i <7;i++){
+	// gain --> dt/(dt+T) wit T time constan of the filter, dt = sampling time
+	ddq_filt(i) = gain*ddq_filt(i) +  (1 - gain) * ddq(i); 
+  }
+  return ddq_filt; 
+}
+
+
  
 // // //                          CALLBACKS		                     //
 // // //---------------------------------------------------------------//
@@ -470,16 +532,14 @@ DQ_SerialManipulator robot = init_dq_robot();
 
 void MotionControlDq::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
-  
-	pose_n_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
-	dpose_n_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
-	ddpose_n_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
+	// pose_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
+	// dpose_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
+	// ddpose_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
  } 
 
 // //----------- DESIRED COMPLIANT TRAJECTORY -------------//
 void MotionControlDq::CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
-  
 	pose_d_ << msg->pose_c[0], msg->pose_c[1], msg->pose_c[2],msg->pose_c[3],msg->pose_c[4],msg->pose_c[5],msg->pose_c[6],msg->pose_c[7];		
 	dpose_d_ << msg->dpose_c[0], msg->dpose_c[1], msg->dpose_c[2],msg->dpose_c[3],msg->dpose_c[4],msg->dpose_c[5],msg->dpose_c[6],msg->dpose_c[7];	
 	ddpose_d_ << msg->ddpose_c[0], msg->ddpose_c[1], msg->ddpose_c[2],msg->ddpose_c[3],msg->ddpose_c[4],msg->ddpose_c[5],msg->ddpose_c[6],msg->ddpose_c[7];	

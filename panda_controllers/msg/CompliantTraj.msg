@@ -5,6 +5,8 @@ float64[8] ddpose_c
 float64[6] flog
 float64[6] wrench_n
 float64[3] position_c
+float64[3] vel_c
+float64[3] acc_c
 float64[3] f_filtered
 #dual-arm sytem
 float64[8] pose_rel_c

@@ -181,7 +181,8 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
         Matrix<double, 8, 8> I8;                           
 		Matrix<double, 7, 7> I7;
 		Matrix<double, 16, 16> I16;
-	    
+		int count; 
+
 	
 		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_compl_traj_proj_;

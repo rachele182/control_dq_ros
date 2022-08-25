@@ -238,7 +238,6 @@ void dual_impedance_loop::update(){
    Vector3d pos_abs_c,pos_rel_c; //computed abs and rel positions
    Vector6d wrench_rel,wrench_abs,wrench_rel_f,wrench_abs_f,f_log_a, f_log_r; //mapped ext wrenches
    
-   
    // DQ nominal desired poses
    pose_a_d_dq = DQ(pose_d_).normalize(); 
    pose_r_d_dq = DQ(pose_r_d_).normalize(); 

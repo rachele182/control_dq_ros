@@ -138,30 +138,30 @@ int demo_int_traj (Vector3d pos_i, double time) {
   double z_int;
   int phase; 
   phase = 0; 
-  // z_int = 0.035; 
-  z_int = 0.14; 
+  z_int = 0.12; 
   Vector3d pos_f;
-  if(time>=0 && time<20){
+
+  if(time>=0 && time<10){ // go down
     tmp << pos_i; 
     pos_f << pos_i(0), pos_i(1), z_int; 
-    t_f = 20; 
+    t_f = 10; 
     t = time;
-  }else if (time>=20 && time<21){
+  }else if (time>=10 && time<12){
     tmp << pos_i(0), pos_i(1), z_int; 
     pos_f << tmp;
-    t_f = 1; 
-    t = time - 20; 
-  }else if (time>=21 && time<31){
+    t_f = 2; 
+    t = time - 10; 
+  }else if (time>=12 && time<22){ //go up
     tmp << pos_i(0), pos_i(1), z_int; 
-    pos_f << pos_i(0), pos_i(1), 0.3; 
+    pos_f << pos_i(0), pos_i(1), pos_i(2); 
     t_f = 10;
-    t = time - 21; 
+    t = time - 12; 
     phase = 1; 
   }else {
-    tmp << pos_i(0), pos_i(1), 0.3; 
+    tmp << pos_i(0), pos_i(1),  pos_i(2); 
     pos_f << tmp;
     t_f = 1000; 
-    t = time - 31;  
+    t = time - 22;  
     phase = 1; 
   }
    traj_t.p_des << tmp + (tmp - pos_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
@@ -502,16 +502,19 @@ int main(int argc, char **argv)
     }
 
     ros::spinOnce();
-    pos_init << pos_d;
-    or_init << or_d; 
 
-    //dual arm
-    pose_1_dq = DQ(pose_1); pose_2_dq = DQ(pose_2); pose_1_dq = pose_1_dq.normalize(); pose_2_dq = pose_2_dq.normalize(); 
-    pos_in_1 << pos1; pos_in_2 << pos2;
-    or_1 = vec4(pose_1_dq.rotation()); or_2 = vec4(pose_2_dq.rotation()); 
-    pose_abs_in << pose_abs; 
-    pose_rel_in << pose_rel; 
-
+    if(dual==0){
+      pos_init << pos_d;
+      or_init << or_d; 
+    }else{
+      //dual arm
+      pose_1_dq = DQ(pose_1); pose_2_dq = DQ(pose_2); pose_1_dq = pose_1_dq.normalize(); pose_2_dq = pose_2_dq.normalize(); 
+      pos_in_1 << pos1; pos_in_2 << pos2;
+      or_1 = vec4(pose_1_dq.rotation()); or_2 = vec4(pose_2_dq.rotation()); 
+      pose_abs_in << pose_abs; 
+      pose_rel_in << pose_rel; 
+    }
+  
     t_init = ros::Time::now();
     t = (ros::Time::now() - t_init).toSec();
 
@@ -604,11 +607,12 @@ int main(int argc, char **argv)
         
         ///===========================PUBLISHING =========================///
 
-        if(choice==3 || choice==4) {
+        if(choice==3){
           // publish also des relative pose
-          Vector3d pos_r; DQ pose_rel_dq; 
-          pose_rel_dq = DQ(pose_rel).normalize(); 
-          pos_r = vec3(pose_rel_dq.translation());
+          if(dual==1){
+            Vector3d pos_r; DQ pose_rel_dq; 
+            pose_rel_dq = DQ(pose_rel).normalize(); 
+            pos_r = vec3(pose_rel_dq.translation());
 
           for (int i=0; i<8; i++){
             traj_msg.pose_r[i] = pose_rel_in(i);
@@ -617,8 +621,23 @@ int main(int argc, char **argv)
          }
           for (int i=0; i<3; i++){
           traj_msg.position_r[i] = pos_r(i);
-         }
+         }         
+          }
+        }
+        if(choice==4){
+          // publish also des relative pose
+            Vector3d pos_r; DQ pose_rel_dq; 
+            pose_rel_dq = DQ(pose_rel).normalize(); 
+            pos_r = vec3(pose_rel_dq.translation());
 
+          for (int i=0; i<8; i++){
+            traj_msg.pose_r[i] = pose_rel_in(i);
+            traj_msg.dpose_r[i] = 0;
+            traj_msg.ddpose_r[i] = 0;
+         }
+          for (int i=0; i<3; i++){
+          traj_msg.position_r[i] = pos_r(i);
+         } 
         }
 
         if(choice==1 || choice ==2 || choice==3 || choice==4){

@@ -4,44 +4,26 @@
 
 #define     MASS          1.5                         // [kg]         apparent mass
 #define     K_DEFAULT     300                         // [Nm]         default stiffness
-#define     D_DEFAULT     8*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default damping
-// #define     D_DEFAULT     150;                     // [Ns/m]       default damping
+#define     D_DEFAULT     4*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default damping             
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
 #define     K_INIT        200                         // [Nm]         default translational stiffness
 #define     D_INIT        2*sqrt(K_DEFAULT*MASS);     // [Ns/m]        default translational damping
-#define     DZ_VALUE      5                           // dead zone value ext forces (?)       
-#define     SAMPLE_TIME   0.005                       // s                 
-#define     CUT_OFF_FREQ  1                           // Hz
+#define     DZ_VALUE_F    1.5                           // dead zone value ext forces (?)       
+#define     DZ_VALUE_M    0.5                         // dead zone value ext torques (?)   
 
 using namespace DQ_robotics;  
 using namespace panda_controllers; 
 using DQ_robotics::E_;
-using DQ_robotics::i_;
-using DQ_robotics::j_;
-using DQ_robotics::k_;
 using DQ_robotics::C8;
 
 // --------------------------DEFINE FUNCTIONS---------------------------------------------------//
 
-
-double impedance_loop::lowpassFilter(double sample_time, double y, double y_last, double cutoff_frequency){
-  if (sample_time < 0 || !std::isfinite(sample_time)) {
-    throw std::invalid_argument("lowpass-filter: sample_time is negative, infinite or NaN.");
-  }
-  if (cutoff_frequency <= 0 || !std::isfinite(cutoff_frequency)) {
-    throw std::invalid_argument(
-        "lowpass-filter: cutoff_frequency is zero, negative, infinite or NaN.");
-  }
-  if (!std::isfinite(y) || !std::isfinite(y_last)) {
-    throw std::invalid_argument(
-        "lowpass-filter: current or past input value of the signal to be filtered is infinite or "
-        "NaN.");
-  }
-  double gain = sample_time / (sample_time + (1.0 / (2.0 * M_PI * cutoff_frequency)));
+double impedance_loop::Filter(double y, double y_last){  
+  double gain; 
+  gain = 0.1; 
   return gain * y + (1 - gain) * y_last;
 }
-
 
 Vector6d impedance_loop::wrench_mapping(Vector6d wrench_ext,DQ_robotics::DQ x_hat){
        Vector6d flog;  
@@ -52,23 +34,34 @@ Vector6d impedance_loop::wrench_mapping(Vector6d wrench_ext,DQ_robotics::DQ x_ha
        Ibar.block<3,3>(3,5) = MatrixXd::Identity(3,3);
        MatrixXd Glog = Ibar * G * Q8;
        flog = Glog.transpose()*wrench_ext;
-
     return flog;
     }
 
 // DEAD ZONE FOR EXTERNAL FORCES // 
 
-Vector6d impedance_loop::dead_zone(Vector6d wrench_ext, double dz_value){
+Vector6d impedance_loop::dead_zone(Vector6d wrench_ext, double dz_value,double dz_value_torques){
    Vector6d wrench_n; 
+   double UL; double LL; UL = dz_value; LL = -dz_value; //upper and lower limit for ext forces
+   double UL_M;  double LL_M; UL_M = dz_value_torques; LL_M = -dz_value_torques; //upper and lower limit for ext moments
 
-   for (int i = 0; i < 6; i++) {
-    if (abs(wrench_ext[i]) < dz_value) {
+for (int i = 0; i < 3; i++) {
+    if (wrench_ext[i] >= LL && wrench_ext[i] <= UL) {
       wrench_n[i] = 0;
-    } else if (wrench_ext[i] <= -dz_value) {
-      wrench_n[i] = wrench_ext[i] + dz_value;
+    } else if (wrench_ext[i] < LL) {
+      wrench_n[i] = wrench_ext[i] - LL;
 
-    } else if(wrench_ext[i] >= dz_value){
-      wrench_n[i] = wrench_ext[i] - dz_value;
+    } else if(wrench_ext[i] > UL){
+      wrench_n[i] = wrench_ext[i] - UL;
+    }
+  }
+for (int i = 3; i < 6; i++) {
+    if (wrench_ext[i] >= LL_M && wrench_ext[i] <= UL_M) {
+      wrench_n[i] = 0;
+    } else if (wrench_ext[i] < LL_M) {
+      wrench_n[i] = wrench_ext[i] - LL_M;
+
+    } else if(wrench_ext[i] > UL_M){
+      wrench_n[i] = wrench_ext[i] - UL_M;
     }
   }
 return wrench_n;
@@ -78,7 +71,8 @@ void impedance_loop::admittance_eq(Vector6d flog,Vector6d y_hat,Vector6d dy_hat,
         MatrixXd Kd,MatrixXd Bd,MatrixXd Md,double time_prec, double t){
             adm_eq.ddy_hat = Md.inverse()*(-Bd*dy_hat-Kd*y_hat-flog);            
             double cdt; 
-            cdt = t-time_prec;
+            cdt = 0.005;
+            // cdt = t-time_prec;
             adm_eq.dy_hat  = adm_eq.ddy_hat*cdt + adm_eq.dy_hat;
             adm_eq.y_hat = adm_eq.dy_hat*cdt + adm_eq.y_hat;
          
@@ -151,13 +145,10 @@ bool impedance_loop::init(ros::NodeHandle& node_handle){
     time_prec = ros::Time::now().toSec();     // previous cyle time 
     t = ros::Time::now().toSec();             // current ros time
     wrench_ext.setZero();                     // external wrench on EE
-    wrench_n = wrench_ext;  
-    fx = 0;
-    fy = 0;
-    fz = 0; 
-    fx_prec = 0;
-    fy_prec = 0;
-    fz_prec = 0; 
+    wrench_n.setZero(); 
+    wrench_f.setZero();  
+    fx = 0; fy = 0; fz = 0; 
+    fx_prec = 0; fy_prec = 0; fz_prec = 0; 
     pose_d_ << 1,0,0,0,0,0,0,0;               // nominal des trajectory                                         
     dpose_d_.setZero();
     ddpose_d_.setZero();
@@ -171,11 +162,9 @@ bool impedance_loop::init(ros::NodeHandle& node_handle){
     disp.x_hat << 1,0,0,0,0,0,0,0;             // pose displacement 8x1
     comp.x_c << 1,0,0,0,0,0,0,0;               // desired compliant pose 8x1 
     // Initialize stiffness and damping matrices
-    KD.setIdentity(); 
-    BD.setIdentity(); 
-    MD.setIdentity();
-    KD << I6*K_INIT; 
-	  BD << I6*D_INIT; 
+    KD.setIdentity();  BD.setIdentity(); MD.setIdentity();
+    KD << I6*K_DEFAULT; 
+	  BD << I6*D_DEFAULT; 
     count = 0;
    return true;
 
@@ -193,10 +182,7 @@ void impedance_loop::update(){
    DQ pose_d_dq; 
    Vector3d position_c;
    Vector8d pose_nom;
-   Vector8d dpose_nom;
-   double fx_fil,fy_fil,fz_fil; //current external forces
    pose_nom << 1,0,0,0,0,0,0,0;
-   dpose_nom << 0,0,0,0,0,0,0; 
   
    //Retrieve current EE orientation
    pos_in_dq = DQ(pos_in_); //position
@@ -211,49 +197,39 @@ void impedance_loop::update(){
    x_dq = x_dq.normalize();
 
    //Impedance matrices 
-  //  KD(0,0)= K_ROT;
-	//  KD(1,1)= K_ROT;
-	//  KD(2,2)= K_ROT;
-	//  KD(3,3)= K_DEFAULT;
-	//  KD(4,4)= K_DEFAULT;
-	//  KD(5,5)= K_DEFAULT;
+   KD(0,0)= K_ROT; KD(1,1)= K_ROT; KD(2,2)= K_ROT; 
+   KD(3,3)= K_DEFAULT; KD(4,4)= K_DEFAULT; KD(5,5)= K_DEFAULT;
  
-	//  BD(0,0)= D_ROT;
-	//  BD(1,1)= D_ROT;
-	//  BD(2,2)= D_ROT;
-	//  BD(3,3)= D_DEFAULT;
-	//  BD(4,4)= D_DEFAULT;
-	//  BD(5,5)= D_DEFAULT;
-
+	 BD(0,0)= D_ROT; BD(1,1)= D_ROT; BD(2,2)= D_ROT;
+	 BD(3,3)= D_DEFAULT; BD(4,4)= D_DEFAULT; BD(5,5)= D_DEFAULT;
    MD =I6*MASS;
   
-  //lowpass filter for ext forces
-  fx_prec = fx; 
-  fy_prec = fy;
-  fz_prec = fz; 
-
-  fx = wrench_ext(0);
-  fy = wrench_ext(1);
-  fz = wrench_ext(2); 
-
-  fx_fil = lowpassFilter(SAMPLE_TIME,fx,fx_prec,CUT_OFF_FREQ); 
-  fy_fil = lowpassFilter(SAMPLE_TIME,fy,fy_prec,CUT_OFF_FREQ); 
-  fz_fil = lowpassFilter(SAMPLE_TIME,fz,fz_prec,CUT_OFF_FREQ); 
-
-  wrench_n << fx_fil,fy_fil,fz_fil,wrench_ext(3),wrench_ext(4),wrench_ext(5); 
-
   //Dead zone for estimated external force
-  wrench_n = dead_zone(wrench_n,DZ_VALUE);
+  // wrench_n = dead_zone(wrench_ext,DZ_VALUE_F,DZ_VALUE_M);
+  wrench_n = wrench_ext; 
 
+  //EMA filter for ext forces
+  if(count==0){
+      fx_prec = 0; fy_prec = 0; fz_prec = 0;
+  }
+
+  fx_prec = fx;fy_prec = fy;fz_prec = fz;
+  fx = wrench_n(0); fy = wrench_n(1); fz = wrench_n(2); 
+  fx = Filter(fx,fx_prec); 
+  fy = Filter(fy,fy_prec); 
+  fz = Filter(fz,fz_prec); 
+
+  wrench_f << fx,fy,fz,wrench_n(3),wrench_n(4),wrench_n(5); 
+ 
   // External wrench w.r.t compliant frame
 
-  wrench_n =  vec6(rot_in_dq.conj()*DQ(wrench_n)*rot_in_dq);
+  wrench_f =  vec6(rot_in_dq.conj()*DQ(wrench_f)*rot_in_dq);
 
   x_hat_dq = DQ(disp.x_hat); 
 
   // External wrench consistent with log displacement
 
-  Vector6d f_log = wrench_mapping(wrench_n,x_hat_dq);
+  Vector6d f_log = wrench_mapping(wrench_f,x_hat_dq);
 
   t = ros::Time::now().toSec();
 
@@ -271,7 +247,14 @@ void impedance_loop::update(){
 
   position_c = vec3(DQ(comp.x_c).translation()); 
 
-  
+  //==== DEBUG utils=====///
+    DQ x; DQ dx; DQ ddx; 
+    x = DQ(comp.x_c); dx = DQ(comp.dx_c); ddx = DQ(comp.ddx_c); 
+    DQ p_dot_dq; DQ acc_dot_dq;
+    p_dot_dq = 2*D(dx)*(P(x)).conj() + 2*D(x)*(P(dx)).conj();
+    acc_dot_dq =  2*D(ddx)*(P(x)).conj() + 4*D(dx)*(P(dx)).conj() + 2*D(x)*(P(ddx)).conj();
+    Vector3d p_dot; Vector3d acc_dot;
+    p_dot = vec3(p_dot_dq); acc_dot = vec3(acc_dot_dq);  
  
   // //---------------PUBLISHING----------------//
 
@@ -287,19 +270,21 @@ void impedance_loop::update(){
          compliant_traj_msg.wrench_n[i] = wrench_n(i);
        }   
 
-    compliant_traj_msg.position_c[0] = position_c(0); 
-    compliant_traj_msg.position_c[1] = position_c(1); 
-    compliant_traj_msg.position_c[2] = position_c(2); 
+    for (int i=0; i<3; i++){
+      compliant_traj_msg.position_c[i] = position_c(i); 
+      compliant_traj_msg.vel_c[i] = p_dot(i); 
+      compliant_traj_msg.acc_c[i] = acc_dot(i); 
+       }  
 
-    compliant_traj_msg.f_filtered[0] = fx_fil;
-    compliant_traj_msg.f_filtered[1] = fy_fil;
-    compliant_traj_msg.f_filtered[2] = fz_fil;
+    compliant_traj_msg.f_filtered[0] = fx;
+    compliant_traj_msg.f_filtered[1] = fy;
+    compliant_traj_msg.f_filtered[2] = fz;
 
     if(pose_d_!= pose_nom){
        pub_compliant_traj.publish(compliant_traj_msg);
     }
 
-   count = count++;
+   count = count+1;
 }
 
 //---------------------CALLBACKS------------------//
@@ -307,10 +292,12 @@ void impedance_loop::update(){
 //----------- DESIRED TRAJECTORY -------------//
 void impedance_loop::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
-  
-	pose_d_ << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];		
-  dpose_d_ << msg->dpose_d[0], msg->dpose_d[1], msg->dpose_d[2],msg->dpose_d[3],msg->dpose_d[4],msg->dpose_d[5],msg->dpose_d[6],msg->dpose_d[7];	
-	ddpose_d_ << msg->ddpose_d[0], msg->ddpose_d[1], msg->ddpose_d[2],msg->ddpose_d[3],msg->ddpose_d[4],msg->ddpose_d[5],msg->ddpose_d[6],msg->ddpose_d[7];	
+  for (int i=0; i<8; i++){
+    pose_d_(i) = msg->pose_d[i];
+    dpose_d_(i) = msg->dpose_d[i];
+    ddpose_d_(i) = msg->ddpose_d[i];
+  }
+
  } 
 
 //Callback for robot pose
@@ -320,19 +307,21 @@ void impedance_loop::ee_pose_Callback(const geometry_msgs::PoseStampedConstPtr& 
 }
 
 void impedance_loop::f_ext_Callback(const panda_controllers::InfoDebugConstPtr& msg){
-  wrench_ext << msg->wrench_ext[0], msg->wrench_ext[1],msg->wrench_ext[2], msg->wrench_ext[3],msg->wrench_ext[4],msg->wrench_ext[5];
+  for(int i=0; i<6; i++){
+    wrench_ext(i) = msg->f_ext_hat[i]; 
+  }
 }
 
 //----------- DESIRED IMPEDANCE -------------//
 void impedance_loop::desiredImpedanceProjectCallback(
      		const panda_controllers::DesiredImpedanceConstPtr& msg){
 
-	for (int i=0; i<6; i++){
-		for (int j=0; j<6; j++){
-			KD(i, j) = msg->stiffness_matrix[i*6 + j];
-			BD(i, j) = msg->damping_matrix[i*6 + j];
-		}
-	}
+	// for (int i=0; i<6; i++){
+	// 	for (int j=0; j<6; j++){
+	// 		KD(i, j) = msg->stiffness_matrix[i*6 + j];
+	// 		BD(i, j) = msg->damping_matrix[i*6 + j];
+	// 	}
+	// }
 }
 
 

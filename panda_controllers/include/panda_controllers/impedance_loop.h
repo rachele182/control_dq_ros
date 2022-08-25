@@ -49,13 +49,13 @@ class impedance_loop{
         MatrixXd getQ4_dot(DQ_robotics::DQ &rot,DQ_robotics::DQ &drot);
         MatrixXd getQ8_dot(DQ_robotics::DQ &x,DQ_robotics::DQ &dx);
         Vector6d wrench_mapping(Vector6d wrench_ext,DQ_robotics::DQ x_hat);
-        Vector6d dead_zone(Vector6d wrench_ext, double dz_value);
+        Vector6d dead_zone(Vector6d wrench_ext, double dz_value,double dz_value_torques);
         void admittance_eq(Vector6d flog,Vector6d y_hat,Vector6d dy_hat,
         MatrixXd Kd,MatrixXd Bd,MatrixXd Md,double time_prec, const double t) ; 
         void compute_pose_disp(Vector6d y_hat,Vector6d dy_hat,Vector6d ddy_hat); 
         void compute_traj(Vector8d x_d,Vector8d dx_d,Vector8d ddx_d,
         Vector8d x_hat,Vector8d dx_hat,Vector8d ddx_hat);
-        double lowpassFilter(double sample_time, double y, double y_last, double cutoff_frequency);
+        double Filter(double y, double y_last); //  exponential moving average filter
         //TRAJ STRUCT
         struct adm_struct{
             Vector6d y_hat;
@@ -86,6 +86,7 @@ class impedance_loop{
         Matrix<double, 6, 6> MD;              // virtual mass
         Vector6d wrench_ext;                 // Estimated External Wrench 6x1
 		Vector6d wrench_n;                   // new external wrench
+        Vector6d wrench_f;                   // external wrench after EMA filter
         double fx;
         double fy;
         double fz; 

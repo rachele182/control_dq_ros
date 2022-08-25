@@ -447,7 +447,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	// ----------- COMMANDED TORQUES and EXTERNAL FORCES -------------//
 
 	for(int i=0; i<7;i++){
-		info_debug_msg.tau_d[i] = tau_d(i);
 		info_debug_msg.tau_null[i] = tau_nullspace(i);
 		info_debug_msg.tau_task[i] = tau_task(i);
 	}
@@ -463,9 +462,6 @@ DQ_SerialManipulator robot = init_dq_robot();
 	info_debug_msg.pos_curr[0] = pos(0); // position error x-axis
 	info_debug_msg.pos_curr[1] = pos(1); // position error y-axis
 	info_debug_msg.pos_curr[2] = pos(2); // position error z-axis
-	info_debug_msg.pos_error[0] = pos_error(0); // position error x-axis
-	info_debug_msg.pos_error[1] = pos_error(1); // position error y-axis
-	info_debug_msg.pos_error[2] = pos_error(2); // position error z-axis
 
  	pub_info_debug.publish(info_debug_msg);
 
