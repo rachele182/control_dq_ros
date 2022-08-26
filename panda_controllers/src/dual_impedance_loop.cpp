@@ -3,19 +3,17 @@
 
 
 #define     MASS          1.5                         // [kg]         apparent mass
-#define     Kr_DEFAULT    600                         // [Nm]         default relative stiffness
+#define     Kr_DEFAULT    300                         // [Nm]         default relative stiffness
 #define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
 #define     Ka_DEFAULT    300                         // [Nm]         default absolutestiffness
-#define     SC            8                          // empyrically overdamping factor        
+#define     SC            4                          // empyrically overdamping factor        
 #define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);   // [Ns/m]       default absolute damping          
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
 #define     DZ_VALUE_F    5                           // dead zone value ext forces (?)       
 #define     DZ_VALUE_M    1.5                         // dead zone value ext torques (?)       
-#define     Ts            0.5                         // sampling time
-#define     freq          5
 
-using namespace DQ_robotics;   using namespace panda_controllers; using namespace alglib; 
+using namespace DQ_robotics;   using namespace panda_controllers; 
 using DQ_robotics::E_;
 using DQ_robotics::C8;
 
@@ -48,24 +46,6 @@ for (int i = 3; i < 6; i++) {
     }
   }
 return wrench_n;
-}
-
-Vector6d dual_impedance_loop::model_ext_forces(double t){
-    double m; 
-    Vector6d wrench; 
-    double f; 
-    m = 1; 
-    if(t>=20){
-       f = m*(t-20); 
-         if (f >= 10){
-            f = 10;
-       }
-    }
-    else{
-        f = 0; 
-    }
-    wrench << 0,f,0,0,0;
-return wrench; 
 }
 
 double dual_impedance_loop::Filter(double y, double y_last){  
@@ -105,8 +85,10 @@ void dual_impedance_loop::wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ 
     fr = 0.5*(wr2_1.head(3) - wr1_1.head(3)); // rel force
     Ma = wrench_1.tail(3) + (p1_a).cross(f1) + wrench_2.tail(3) + (p2_a).cross(f2); // abs torque
     Mr = 0.5*(wr2_1.tail(3)- wr1_1.tail(3)); // rel torque
-    wa.head(3) << fa; wa.tail(3) << Ma; 
-    wr.head(3) << fr; wr.tail(3) << Mr; 
+    wa.head(3) << fa; 
+    wa.tail(3) << Ma; 
+    wr.head(3) << fr;  
+    wr.tail(3) << Mr;
     coop_wrench.wa = wa; coop_wrench.wr = wr; 
 }
    
@@ -120,13 +102,11 @@ void dual_impedance_loop::admittance_eq(Vector6d flog_r,Vector6d flog_abs,Vector
             // cdt = t-time_prec;
             cdt = 0.005; 
             //integrate
-            dyr_hat  = adm_eq.ddyr_hat*cdt + dyr_hat;
-            dya_hat  = adm_eq.ddya_hat*cdt + dya_hat;
-            yr_hat = dyr_hat*cdt + yr_hat;
-            ya_hat = dya_hat*cdt + ya_hat;
-            //store values in struct
-            adm_eq.dyr_hat = dyr_hat;  adm_eq.dya_hat = dya_hat; 
-            adm_eq.yr_hat = yr_hat; adm_eq.ya_hat = ya_hat; 
+            adm_eq.dyr_hat  = adm_eq.ddyr_hat*cdt + adm_eq.dyr_hat;
+            adm_eq.yr_hat = adm_eq.dyr_hat*cdt + adm_eq.yr_hat;
+            adm_eq.dya_hat  = adm_eq.ddya_hat*cdt + adm_eq.dya_hat;
+            adm_eq.ya_hat = adm_eq.dya_hat*cdt + adm_eq.ya_hat;
+   
         }
 
 void dual_impedance_loop::compute_pose_disp(Vector6d yr_hat,Vector6d dyr_hat,Vector6d ddyr_hat,
@@ -186,9 +166,9 @@ bool dual_impedance_loop::init(ros::NodeHandle& node_handle){
       ros::TransportHints().reliable().tcpNoDelay());
 
 
-//     sub_des_imp_proj_ =  node_handle.subscribe(  "/motion_control_dq/desired_impedance", 1, 
-// 													&dual_impedance_loop::desiredImpedanceProjectCallback, this,
-// 													ros::TransportHints().reliable().tcpNoDelay());
+    // sub_des_imp_proj_ =  node_handle.subscribe(  "/motion_control_dq/desired_impedance", 1, 
+		// 											&dual_impedance_loop::desiredImpedanceProjectCallback, this,
+		// 											ros::TransportHints().reliable().tcpNoDelay());
 
     pub_compliant_traj = node_handle.advertise<panda_controllers::CompliantTraj>("/motion_control_dq/compliant_traj", 1);
 
@@ -197,11 +177,16 @@ bool dual_impedance_loop::init(ros::NodeHandle& node_handle){
     time_prec = ros::Time::now().toSec(); // previous cyle time 
     t = ros::Time::now().toSec(); // current ros time
     t_init = ros::Time::now();
-    //Ext wrenches 
-    wrench_ext_l_.setZero(); wrench_ext_r_.setZero();             // external wrench on arms EEs
-    fax_prec = 0; fay_prec = 0; faz_prec = 0; frx_prec = 0; fry_prec = 0; frz_prec = 0; 
-    fa_x_filt = 0, fa_y_filt = 0; fa_z_filt = 0;                 // filtered absolute force 
-    fr_x_filt = 0, fr_y_filt = 0; fr_z_filt = 0;                 // filtered relative force 
+    //Ext wrenches left arm 
+    wrench_ext_hat.setZero();  wrench_ext_n_l_.setZero(); 
+    wrench_ext_l_.setZero(); 
+    fx_l = 0; fy_l = 0; fz_l = 0; 
+    fx_l_prec = 0; fy_l_prec = 0; fz_l_prec = 0; 
+    //Ext wrenches right arm 
+    wrench_ext_r_.setZero();  wrench_ext_n_r_.setZero(); 
+    fx_r = 0; fy_r = 0; fz_r = 0; 
+    fx_r_prec = 0; fy_r_prec = 0; fz_r_prec = 0; 
+    //Nominal cooperative traj
     pose_d_ << 1,0,0,0,0,0,0,0;  dpose_d_.setZero();  ddpose_d_.setZero();    // nominal absolute des trajectory                                         
     pose_r_d_ << 1,0,0,0,0,0,0,0;dpose_r_d_.setZero(); ddpose_r_d_.setZero(); // nominal relative des trajectory                                      
     xr_ << 1,0,0,0,0,0,0,0; xa_<< 1,0,0,0,0,0,0,0; x1_<< 1,0,0,0,0,0,0,0; x2_<< 1,0,0,0,0,0,0,0;  
@@ -236,11 +221,11 @@ void dual_impedance_loop::update(){
    DQ pose_r_d_dq, pose_a_d_dq; //Dq nominal trajectories
    DQ x1_dq,x2_dq,xa_dq,xr_dq,rot_r_dq,rot_a_dq; //DQ poses
    Vector3d pos_abs_c,pos_rel_c; //computed abs and rel positions
-   Vector6d wrench_rel,wrench_abs,wrench_rel_f,wrench_abs_f,f_log_a, f_log_r; //mapped ext wrenches
+   Vector6d wrench_rel,wrench_abs,f_log_a, f_log_r; //mapped ext wrenches
    
    // DQ nominal desired poses
-   pose_a_d_dq = DQ(pose_d_).normalize(); 
-   pose_r_d_dq = DQ(pose_r_d_).normalize(); 
+   pose_a_d_dq = (DQ(pose_d_)).normalize(); 
+   pose_r_d_dq = (DQ(pose_r_d_)).normalize(); 
    
    //=== Relative impedance
    KD_r(0,0)= K_ROT; KD_r(1,1)= K_ROT; KD_r(2,2)= K_ROT; //rotational
@@ -254,59 +239,46 @@ void dual_impedance_loop::update(){
    BD_a(3,3)= Da_DEFAULT; BD_a(4,4)= Da_DEFAULT; BD_a(5,5)= Da_DEFAULT;
    MD =I6*MASS;
    
-   //Current poses
+  //Current poses
    x1_dq = DQ(x1_); x2_dq = DQ(x2_); xr_dq = DQ(xr_); xa_dq = DQ(xa_);
    x1_dq = x1_dq.normalize(); x2_dq = x2_dq.normalize(); xr_dq = xr_dq.normalize(); xa_dq = xa_dq.normalize();
 
-   //Dead zone for estimated external forces acting on EEs
-   wrench_ext_l_ = dead_zone(wrench_ext_l_,DZ_VALUE_F,DZ_VALUE_M);  
-   wrench_ext_r_ = dead_zone(wrench_ext_r_,DZ_VALUE_F,DZ_VALUE_M);
+  // //Dead zone for estimated external forces acting on EEs
+  // wrench_ext_l_ = dead_zone(wrench_ext_l_,DZ_VALUE_F,DZ_VALUE_M); 
+  // // for right arm take estimated one vias momentum
+  // wrench_ext_hat = dead_zone(wrench_ext_hat,DZ_VALUE_F,DZ_VALUE_M);  
+   
+  //EMA filter for ext forces
+  if(count==0){
+    fx_l_prec = 0; fy_l_prec = 0; fz_l_prec = 0;
+    fx_r_prec = 0; fy_r_prec = 0; fz_r_prec = 0;
+  }
 
-// =============================================///
+  fx_r_prec = fx_r; fy_r_prec = fy_r; fz_r_prec = fz_r;
+  fx_l_prec = fx_l; fy_l_prec = fy_l; fz_l_prec = fz_l;
+
+  fx_l = wrench_ext_l_(0); fy_l = wrench_ext_l_(1); fz_l = wrench_ext_l_(2); 
+  fx_r = wrench_ext_hat(0); fy_r = wrench_ext_hat(1); fz_r = wrench_ext_hat(2); 
+  fx_r = Filter(fx_r,fx_r_prec); fy_r = Filter(fy_r,fy_r_prec);  fz_r = Filter(fz_r,fz_r_prec); 
+  fx_l = Filter(fx_l,fx_l_prec); fy_l = Filter(fy_l,fy_l_prec);  fz_l = Filter(fz_l,fz_l_prec); 
+
+  wrench_ext_n_l_ << fx_l,fy_l,fz_l,wrench_ext_l_(3),wrench_ext_l_(4),wrench_ext_l_(5); 
+  wrench_ext_n_r_ << fx_r,fy_r,fz_r,wrench_ext_hat(3),wrench_ext_hat(4),wrench_ext_hat(5); 
+
+  // =============================================///
 
    //Wrench linear mapping to CDTS frames
-    Vector6d wrench_abs_w; Vector3d fa_not_filt;
-    wrench_adaptor(wrench_ext_l_, wrench_ext_r_,x1_dq,x2_dq,xa_dq); 
+    Vector6d wrench_abs_w; Vector3d fa_abs;
+    wrench_adaptor(wrench_ext_n_l_, wrench_ext_n_r_,x1_dq,x2_dq,xa_dq); 
     wrench_rel << coop_wrench.wr; wrench_abs_w << coop_wrench.wa; //(w_abs in WorldFrame) 
-    fa_not_filt << wrench_abs_w(0),wrench_abs_w(1),wrench_abs_w(2); 
-
-  // ===== Test LP filter ========================//
-
-  if(count==0){
-      fax_prec = 0; fay_prec = 0; faz_prec = 0; frx_prec = 0;  fry_prec = 0; frz_prec = 0;
-    }
-    //absolute
-    fax_prec = fa_x_filt;fay_prec = fa_y_filt;faz_prec = fa_z_filt;
-    fa_x_filt = wrench_abs_w(0); fa_y_filt = wrench_abs_w(1); fa_z_filt = wrench_abs_w(2); 
-
-    fa_x_filt = Filter(fa_x_filt,fax_prec); 
-    fa_y_filt = Filter(fa_y_filt,fay_prec); 
-    fa_z_filt = Filter(fa_z_filt,faz_prec); 
-
-    wrench_abs_f << fa_x_filt,fa_y_filt,fa_z_filt,0,0,0; 
-
-    //relative
-    frx_prec = fr_x_filt;fry_prec = fr_y_filt;frz_prec = fr_z_filt;
-    fr_x_filt = wrench_rel(0); fr_y_filt = wrench_rel(1); fr_z_filt = wrench_rel(2); 
-
-    fr_x_filt = Filter(fr_x_filt,frx_prec); 
-    fr_y_filt = Filter(fr_y_filt,fry_prec); 
-    fr_z_filt = Filter(fr_z_filt,frz_prec); 
-
-    wrench_rel_f << fr_x_filt,fr_y_filt,fr_z_filt,0,0,0; 
+    fa_abs << wrench_abs_w(0),wrench_abs_w(1),wrench_abs_w(2); //absolute force (WF)
    
    // External wrench w.r.t compliant frames
     rot_r_dq = xr_dq.rotation(); rot_a_dq = xa_dq.rotation();
-    wrench_rel = vec6(rot_r_dq.conj()*DQ(wrench_rel_f)*rot_r_dq); 
-    wrench_abs = vec6(rot_a_dq.conj()*DQ(wrench_abs_f)*rot_a_dq);
+    wrench_rel = vec6(rot_r_dq.conj()*DQ(wrench_rel)*rot_r_dq); 
+    wrench_abs = vec6(rot_a_dq.conj()*DQ(wrench_abs_w)*rot_a_dq);
     
     xr_hat_dq = DQ(disp.xr_hat); xa_hat_dq = DQ(disp.xa_hat); 
-
-    //===== try model of ext forces ====
-    // time = (ros::Time::now() - t_init).toSec(); 
-    //wrench_abs = model_ext_forces(time); 
-    // wrench_abs = vec6(rot_a_dq.conj()*DQ(wrench_abs)*rot_a_dq);
-    //=================
 
     f_log_r = wrench_mapping(wrench_rel,xr_hat_dq);
     f_log_a = wrench_mapping(wrench_abs,xa_hat_dq);
@@ -327,9 +299,9 @@ void dual_impedance_loop::update(){
                     disp.xr_hat,disp.dxr_hat,disp.ddxr_hat,
                     disp.xa_hat,disp.dxa_hat,disp.ddxa_hat);
     
-     pos_abs_c = vec3((DQ(comp.xa_c)).translation()); 
-     pos_rel_c = vec3((DQ(comp.xr_c)).translation()); 
-  
+    pos_abs_c = vec3((DQ(comp.xa_c)).translation()); 
+    pos_rel_c = vec3((DQ(comp.xr_c)).translation()); 
+
     //==== DEBUG utils=====///
     DQ x; DQ dx; DQ ddx; 
     x = DQ(comp.xa_c); dx = DQ(comp.dxa_c); ddx = DQ(comp.ddxa_c); 
@@ -338,14 +310,15 @@ void dual_impedance_loop::update(){
     acc_dot_dq =  2*D(ddx)*(P(x)).conj() + 4*D(dx)*(P(dx)).conj() + 2*D(x)*(P(ddx)).conj();
     Vector3d p_dot; Vector3d acc_dot;
     p_dot = vec3(p_dot_dq); acc_dot = vec3(acc_dot_dq);  
-
+  
     DQ xr; DQ dxr; DQ ddxr; 
     xr = DQ(comp.xr_c); dxr = DQ(comp.dxr_c); ddxr = DQ(comp.ddxr_c); 
     DQ pr_dot_dq; DQ accr_dot_dq;
     pr_dot_dq = 2*D(dxr)*(P(xr)).conj() + 2*D(xr)*(P(dxr)).conj();
     accr_dot_dq =  2*D(ddxr)*(P(xr)).conj() + 4*D(dxr)*(P(dxr)).conj() + 2*D(xr)*(P(ddxr)).conj();
     Vector3d pr_dot; Vector3d accr_dot;
-    pr_dot = vec3(pr_dot_dq); accr_dot = vec3(accr_dot_dq); 
+    pr_dot = vec3(pr_dot_dq); accr_dot = vec3(accr_dot_dq);
+    
     //=================
   
   // //---------------PUBLISHING----------------//
@@ -367,12 +340,11 @@ void dual_impedance_loop::update(){
          compliant_traj_msg.pos_abs_c[i] = pos_abs_c(i); 
          compliant_traj_msg.vel_abs_c[i] = p_dot(i);
          compliant_traj_msg.acc_abs_c[i] = acc_dot(i);
-         compliant_traj_msg.fa[i] = ((wrench_abs_f).head(3))(i); 
-         compliant_traj_msg.fr[i] = ((wrench_rel_f).head(3))(i); 
-         compliant_traj_msg.f1[i] = (wrench_ext_l_.head(3))(i);
-         compliant_traj_msg.f2[i] = (wrench_ext_r_.head(3))(i); 
-         //
-         compliant_traj_msg.fa_not_filt[i] = fa_not_filt(i); 
+         compliant_traj_msg.fa[i] = fa_abs(i); 
+         compliant_traj_msg.fr[i] = ((wrench_rel).head(3))(i); 
+         compliant_traj_msg.f1[i] = (wrench_ext_n_l_.head(3))(i);
+         compliant_traj_msg.f2[i] = (wrench_ext_n_r_.head(3))(i); 
+         compliant_traj_msg.f2_hat[i] = (wrench_ext_hat.head(3))(i); 
        }
 
      if(pose_d_!= pose_nom && pose_r_d_!= pose_nom){
@@ -408,6 +380,7 @@ void dual_impedance_loop::cdts_var_Callback(const panda_controllers::InfoDebugCo
         for (int i=0; i<6; i++){
           wrench_ext_l_(i) = msg->wrench_ext_1[i];
           wrench_ext_r_(i) = msg->wrench_ext_2[i];
+          wrench_ext_hat(i) = msg->f_ext_hat[i]; 
         }
 }
 

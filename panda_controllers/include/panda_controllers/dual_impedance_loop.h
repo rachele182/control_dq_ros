@@ -24,20 +24,14 @@
 #include <panda_controllers/CompliantTraj.h>
 #include <panda_controllers/InfoDebug.h>
 
-
 // DQ toolbox
 #include "dqrobotics/DQ.h"
 #include <dqrobotics/utils/DQ_Constants.h>
 #include <dqrobotics/robot_modeling/DQ_Kinematics.h>
-#include "stdafx.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include "dataanalysis.h"
 
 typedef Matrix<double, 8, 1> Vector8d;
 typedef Matrix<double, 6, 1> Vector6d;
 using namespace std; 
-using namespace alglib; 
 
 //namespace panda_controllers{
 
@@ -53,7 +47,6 @@ class dual_impedance_loop{
         MatrixXd getQ4_dot(DQ_robotics::DQ &rot,DQ_robotics::DQ &drot);
         MatrixXd getQ8_dot(DQ_robotics::DQ &x,DQ_robotics::DQ &dx);
         Vector6d wrench_mapping(Vector6d wrench_ext,DQ_robotics::DQ x_hat);
-        Vector6d model_ext_forces(double t); 
         Vector6d dead_zone(Vector6d wrench_ext, double dz_value,double dz_value_torques);
         void admittance_eq(Vector6d flog_r,Vector6d flog_abs,Vector6d yr_hat,Vector6d dyr_hat,Vector6d ya_hat,Vector6d dya_hat,
         MatrixXd Kd_r,MatrixXd Bd_r,MatrixXd Md_r, MatrixXd Kd_a,MatrixXd Bd_a,MatrixXd Md_a,double time_prec, const double t) ; 
@@ -105,8 +98,11 @@ class dual_impedance_loop{
         Matrix<double, 6, 6> MD;              // virtual mass 
         Matrix<double, 6, 6> KD_a;            // virtual stiffness absolute
         Matrix<double, 6, 6> BD_a;            // virtual damping absolute
-        Vector6d wrench_ext_l_;               // Estimated External Wrench left arm 6x1
-        Vector6d wrench_ext_r_;               // Estimated External Wrench right arm 6x1 
+        Vector6d wrench_ext_hat;              // Estimated External Wrench left arm via momemntum observer 6x1
+        Vector6d wrench_ext_l_;               // External Wrench left arm 6x1
+        Vector6d wrench_ext_r_;               // External Wrench right arm 6x1 
+        Vector6d wrench_ext_n_l_;             // Filtered External Wrench left arm 6x1
+        Vector6d wrench_ext_n_r_;             // Filtered External Wrench right arm 6x1 
         Vector8d pose_d_;                     // desired nominal absolute pose 8x1
         Vector8d dpose_d_;                    // desired nominal absolute dpose 8x1
         Vector8d ddpose_d_;                   // desired nominal absolute ddpose 8x1
@@ -118,18 +114,18 @@ class dual_impedance_loop{
         Vector8d x1_;                         // current left EE pose
         Vector8d x2_;                         // current right EE pose
         //utils for filter
-        double fr_x_filt;
-        double fr_y_filt;
-        double fr_z_filt;
-        double fa_x_filt;
-        double fa_y_filt;
-        double fa_z_filt;
-        double fax_prec;
-        double fay_prec;
-        double faz_prec;
-        double frx_prec;
-        double fry_prec;
-        double frz_prec;
+        double fx_r;
+        double fy_r;
+        double fz_r;
+        double fx_l;
+        double fy_l;
+        double fz_l;
+        double fx_r_prec;
+        double fy_r_prec;
+        double fz_r_prec;
+        double fx_l_prec;
+        double fy_l_prec;
+        double fz_l_prec;
     
         
     //------------SUBSCRIBERS-----------//

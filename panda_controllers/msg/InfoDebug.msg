@@ -8,12 +8,10 @@ float64[7] r #moment observer output
 float64[3] pos_curr
 float64[3] position_c
 float64[6] wrench_ext
-float64[6] f_ext_model
 float64[6] f_ext_hat
 float64[7] q
 float64[7] dq
 float64[7] ddq
-float64[7] ddq_filt
 # Info for dual-arm control
 float64[7] tau_left #computed torque for left arm
 float64[7] tau_right #computed torque for right arm

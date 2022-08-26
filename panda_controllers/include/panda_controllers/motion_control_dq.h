@@ -66,7 +66,6 @@ class MotionControlDq : public controller_interface::MultiInterfaceController<
 		Matrix<double, 7, 1> saturateTorqueRate(
 		const Matrix<double, 7, 1>& tau_d_calculated,
 		const Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
-		Vector7d Filter(Vector7d ddq_old, Vector7d ddq); 
 		std::unique_ptr<franka_hw::FrankaStateHandle> state_handle_;
 		std::unique_ptr<franka_hw::FrankaModelHandle> model_handle_;
 		std::vector<hardware_interface::JointHandle> joint_handles_;

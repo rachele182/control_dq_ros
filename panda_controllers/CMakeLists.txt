@@ -76,6 +76,7 @@ add_library(${PROJECT_NAME}
   # src/impedance_loop.cpp
   # src/commands.cpp
   src/Dynamics.cpp
+  # src/CoriolisMatrix.cpp
   src/parsing_utilities.cpp #util for yaml parameters
 ) 
 
@@ -171,7 +172,6 @@ target_link_libraries(dual_impedance_loop PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
   dqrobotics
-  ALGLIB
 )
 
 # target_link_libraries(impedance_loop ${PROJECT_NAME})

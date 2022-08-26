@@ -25,6 +25,7 @@ float64[3] vel_abs_c #computed linear velocity for absolute
 float64[3] acc_abs_c #computed linear acceleration for absolute
 float64[3] f1 #ext force arm1
 float64[3] f2 #ext force arm2
+float64[3] f2_hat #estimetd ext force arm2 via momentum observe  
 float64[3] fa #absolute force
 float64[3] fr #relative force
-float64[3] fa_not_filt 
+ 
