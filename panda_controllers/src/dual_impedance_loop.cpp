@@ -258,12 +258,12 @@ void dual_impedance_loop::update(){
   fx_l_prec = fx_l; fy_l_prec = fy_l; fz_l_prec = fz_l;
 
   fx_l = wrench_ext_l_(0); fy_l = wrench_ext_l_(1); fz_l = wrench_ext_l_(2); 
-  fx_r = wrench_ext_hat(0); fy_r = wrench_ext_hat(1); fz_r = wrench_ext_hat(2); 
+  fx_r = wrench_ext_r_(0); fy_r = wrench_ext_r_(1); fz_r = wrench_ext_r_(2); 
   fx_r = Filter(fx_r,fx_r_prec); fy_r = Filter(fy_r,fy_r_prec);  fz_r = Filter(fz_r,fz_r_prec); 
   fx_l = Filter(fx_l,fx_l_prec); fy_l = Filter(fy_l,fy_l_prec);  fz_l = Filter(fz_l,fz_l_prec); 
 
   wrench_ext_n_l_ << fx_l,fy_l,fz_l,wrench_ext_l_(3),wrench_ext_l_(4),wrench_ext_l_(5); 
-  wrench_ext_n_r_ << fx_r,fy_r,fz_r,wrench_ext_hat(3),wrench_ext_hat(4),wrench_ext_hat(5); 
+  wrench_ext_n_r_ << fx_r,fy_r,fz_r,wrench_ext_r_(3),wrench_ext_r_(4),wrench_ext_r_(5); 
 
   // =============================================///
 
@@ -342,9 +342,9 @@ void dual_impedance_loop::update(){
          compliant_traj_msg.acc_abs_c[i] = acc_dot(i);
          compliant_traj_msg.fa[i] = fa_abs(i); 
          compliant_traj_msg.fr[i] = ((wrench_rel).head(3))(i); 
-         compliant_traj_msg.f1[i] = (wrench_ext_n_l_.head(3))(i);
-         compliant_traj_msg.f2[i] = (wrench_ext_n_r_.head(3))(i); 
-         compliant_traj_msg.f2_hat[i] = (wrench_ext_hat.head(3))(i); 
+         compliant_traj_msg.f1_f[i] = (wrench_ext_n_l_.head(3))(i); 
+         compliant_traj_msg.f2_f[i] = (wrench_ext_n_r_.head(3))(i); 
+
        }
 
      if(pose_d_!= pose_nom && pose_r_d_!= pose_nom){
@@ -378,9 +378,8 @@ void dual_impedance_loop::cdts_var_Callback(const panda_controllers::InfoDebugCo
           xr_(i) = msg->rel_pose[i];
           }
         for (int i=0; i<6; i++){
-          wrench_ext_l_(i) = msg->wrench_ext_1[i];
-          wrench_ext_r_(i) = msg->wrench_ext_2[i];
-          wrench_ext_hat(i) = msg->f_ext_hat[i]; 
+          wrench_ext_l_(i) = msg->f_ext_hat_l[i];
+          wrench_ext_r_(i) = msg->f_ext_hat_r[i];
         }
 }
 

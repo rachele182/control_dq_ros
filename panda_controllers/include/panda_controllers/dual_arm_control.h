@@ -185,11 +185,11 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		Matrix<double, 16, 16> I16;
 	    //Momentum observer Variables
 		Matrix<double, 7, 7> Ko; //observer gain
-		Vector7d r_l;  //observer output
+		Vector7d r_l;  //observer output left arm
 		Vector7d pl_dot_hat;
 		Vector7d pl_int_hat; 
 		Vector7d p0_l;  
-		Vector7d r_r;  //observer output
+		Vector7d r_r;  //observer output right EM
 		Vector7d pr_dot_hat;
 		Vector7d pr_int_hat; 
 		Vector7d p0_r;  

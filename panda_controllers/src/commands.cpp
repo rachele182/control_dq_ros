@@ -109,9 +109,9 @@ void CoopPoseCallback(
 
 void demo_inf_XY(Eigen::Vector3d pos_i, double t){
     Vector3d tmp;
-    tmp << sin(t)/8, sin(t/2)/4, 0;
+    tmp << 0.5*sin(t)/8, 0.5*sin(t/2)/4, 0;
     traj_t.p_des << pos_i + tmp;
-    traj_t.v_des << cos(t)/8, cos(t/2)/8, 0;
+    traj_t.v_des << 0.5*(cos(t)/8), 0.5*(cos(t/2)/8), 0;
     traj_t.a_des << -sin(t)/8, -sin(t/2)/16, 0;    
 }
 
@@ -138,7 +138,7 @@ int demo_int_traj (Vector3d pos_i, double time) {
   double z_int;
   int phase; 
   phase = 0; 
-  z_int = 0.08; 
+  z_int = 0.06; 
   Vector3d pos_f;
 
   if(time>=0 && time<7){ // go down
@@ -414,9 +414,11 @@ void dual_traj (Vector3d pos_in_1, Vector3d pos_in_2, double time) {
     traj_dual_dq.dxr_des = vec8((dx2_des_dq).conj()*x1_des_dq + (x2_des_dq).conj()*dx1_des_dq);
     traj_dual_dq.ddxr_des = vec8((ddx2_des_dq).conj()*x1_des_dq + 2*((dx2_des_dq).conj()*dx1_des_dq) + (x2_des_dq).conj()*ddx1_des_dq); 
     //Compute desired absolute pose
-    DQ xr_des_dq;  xr_des_dq = DQ(traj_dual_dq.xr_des); 
+    DQ xr_des_dq,dxr_des_dq,ddxr_des_dq;  
+    xr_des_dq = DQ(traj_dual_dq.xr_des); dxr_des_dq = DQ(traj_dual_dq.dxr_des); ddxr_des_dq = DQ(traj_dual_dq.ddxr_des); 
 
     traj_dual_dq.xa_des = vec8(x2_des_dq*pow(xr_des_dq,0.5));
+
     if(count==0){
       traj_dual_dq.dxa_des.setZero();
       traj_dual_dq.ddxa_des.setZero();

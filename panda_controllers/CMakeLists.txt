@@ -72,11 +72,9 @@ add_library(${PROJECT_NAME}
   src/motion_control_dq.cpp #controller 
   src/impedance_control_dq.cpp 
   src/dual_arm_control.cpp #dual arm controller 
-  #src/dq_trajectory.cpp #trajectory
-  # src/impedance_loop.cpp
-  # src/commands.cpp
   src/Dynamics.cpp
-  # src/CoriolisMatrix.cpp
+  src/momentum_observer.cpp
+  src/CoriolisMatrix.cpp
   src/parsing_utilities.cpp #util for yaml parameters
 ) 
 
