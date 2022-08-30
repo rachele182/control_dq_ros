@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <launch>
     <!-- Panda params -->
-    <arg name="robot_ip" default="192.168.3.101"/>
+    <arg name="robot_ip" default="192.168.3.100"/>
     <arg name="load_gripper" default="false"/>
 
     <!-- Controller name -->

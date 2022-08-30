@@ -76,8 +76,9 @@ class MotionControlDq : public controller_interface::MultiInterfaceController<
 		//----------VARIABLES----------//
 		Matrix<double, 7, 1> tau_limit;                    // joint torque limits vector [Nm], from datasheet https://frankaemika.github.io/docs/control_parameters.html
 		const double delta_tau_max_{1.0};                  // torque rate limit [Nm/ms], from datasheet https://frankaemika.github.io/docs/control_parameters.html
-		Vector7d initial_tau_ext;                          // torque sensor bias
-		Vector6d wrench_ext; 
+		Vector7d initial_tau_ext;                          // torque sensor initial bias
+		Vector6d wrench_ext;                               // external wrench EE 
+		Vector6d wrench_ext_hat;                           // estimated external wrench via momentum
 		DQ p_curr_dq; 								       // current position
 		DQ or_curr_dq;                                     // current orientation           
 		Matrix<double, 7, 1> q;                            // joint positions
@@ -87,9 +88,7 @@ class MotionControlDq : public controller_interface::MultiInterfaceController<
 		Matrix<double, 7, 1> dq_in;                        // initial joint velocities
 		Matrix<double, 3, 1> position_d_;                  // initial position
 		Quaterniond orientation_d_;                        // initial orientation; 
-		Vector4d or_d_;
-		Vector7d q_old; 
-		Vector7d dq_old;                                   // previous mes joint velocities
+		Vector4d or_d_;                             
 		Matrix<double, 8, 1> pose_d_;                      // desired pose dq 
 		Matrix<double, 8, 1> dpose_d_;                     // desired velocity dq
 		Matrix<double, 8, 1> ddpose_d_;                    // desired acceleration dq
@@ -100,6 +99,8 @@ class MotionControlDq : public controller_interface::MultiInterfaceController<
         Matrix<double, 8, 8> I8;                           
 		Matrix<double, 7, 7> I7;
 		//Momentum observer Variables
+		double t;               // current ros time starting from zero
+		ros::Time t_init; 
 		Matrix<double, 7, 7> Ko; //observer gain
 		Vector7d r;  //observer output
 		Vector7d p_dot_hat;

@@ -11,7 +11,8 @@ float64[6] wrench_ext
 float64[6] f_ext_hat
 float64[7] q
 float64[7] dq
-float64[7] ddq
+float64 t
+float64[6] f_veg
 # Info for dual-arm control
 float64[7] tau_left #computed torque for left arm
 float64[7] tau_right #computed torque for right arm
@@ -19,6 +20,8 @@ float64[6] wrench_ext_1 #ext wrench on left EE (WF)
 float64[6] wrench_ext_2 #ext wrench on left EE (WF)
 float64[6] f_ext_hat_l #estimated ext wrench left arm 
 float64[6] f_ext_hat_r #estimated ext wrench right arm 
+float64[6] f_franka_hat_l #estimated ext wrench left arm with franka ext torques
+float64[6] f_franka_hat_r #estimated ext wrench right arm with franka ext torques
 float64[3] rel_pos #relative position
 float64[3] abs_pos #absolute position
 float64[8] rel_pose #relative pose

@@ -36,7 +36,7 @@ using namespace DQ_robotics;
 #define 	KD			    25    // derivative gain motion controller
 #define 	KP_ABS			80    // proportional gain motion controller
 #define 	KD_ABS			20    // derivative gain motion controller
-#define 	KO			    3  	  // gain momentum observer
+#define 	KO			    30  	  // gain momentum observer
 #define     KI              50    // integrative term 
 #define 	D_JOINTS	    2     // dissipative term joints
 #define 	COLL_LIMIT		50    // 
@@ -370,7 +370,7 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 
 	// bias torque sensors
 	initial_tau_ext_r = initial_tau_measured_r - g_in_r;
-	initial_tau_ext_l = initial_tau_measured_l - g_in_l;
+	initial_tau_ext_l = initial_tau_measured_l - g_in_l; 
 	count = 0;
 	
  }
@@ -523,11 +523,13 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	
 
 	//Retrieve measured torques and ext forces from franka
-	Map<Matrix<double, 7, 1> > tau_J_d_left(robot_state_left.tau_J_d.data());          // previous cycle commanded torques [Nm]
-	Map<Matrix<double, 6, 1> > wrench_ext_l(robot_state_left.O_F_ext_hat_K.data());    // external wrench [N] exerted by arm1 wrt base frame
-	Map<Matrix<double, 7, 1> > tau_J_d_right(robot_state_right.tau_J_d.data());        // previous cycle commanded torques [Nm]
-	Map<Matrix<double, 6, 1> > wrench_ext_r(robot_state_right.O_F_ext_hat_K.data());   // external wrench [N] exerted by arm2 wrt base frame
-	
+	Map<Matrix<double, 7, 1> > tau_J_d_left(robot_state_left.tau_J_d.data());                // previous cycle commanded torques [Nm]
+	Map<Matrix<double, 6, 1> > wrench_ext_l(robot_state_left.O_F_ext_hat_K.data());          // external wrench [N] exerted by arm1 wrt base frame
+	Map<Matrix<double, 7, 1> > tau_ext_hat_l(robot_state_left.tau_ext_hat_filtered.data());  // external torque arm1 
+	Map<Matrix<double, 7, 1> > tau_J_d_right(robot_state_right.tau_J_d.data());              // previous cycle commanded torques [Nm]
+	Map<Matrix<double, 6, 1> > wrench_ext_r(robot_state_right.O_F_ext_hat_K.data());         // external wrench [N] exerted by arm2 wrt base frame
+	Map<Matrix<double, 7, 1> > tau_ext_hat_r(robot_state_right.tau_ext_hat_filtered.data()); // external torque arm2
+
 // 	Get current CDTS variables
     DQ pose_rel_dq;
     pose_rel_dq = dual_panda.relative_pose(q); 
@@ -616,7 +618,9 @@ void DualArmControl::update(const ros::Time& /*time*/,
     e_pos_abs = des_pos_abs - pos_abs; 
 
 //  //======================| CONTROL VARIABLES |======================//
-    Vector6d wrench_ext_r_hat,wrench_ext_l_hat;  // estimated ext wrench right arm (w. momentum observer)
+    Vector6d wrench_ext_r_hat,wrench_ext_l_hat;  // estimated ext wrench (w. momentum observer)
+	Matrix <double, 6,7> Jr_inv;				 // dynamically consistenst pseudo-inverse of J^T
+	Matrix <double, 6,7> Jl_inv;				 // dynamically consistenst pseudo-inverse of J^T
 	Matrix <double, 16, 1> ax;                	 // input task-space
 	Matrix <double, 14, 1> aq;         	      	 // controller new input joint space
 	Matrix <double, 14, 1> tau_task;		  	 // tau for primary task
@@ -644,7 +648,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
    
 //---------------- CONTROL COMPUTATION -----------------//
 	
- tau_task << Ca*dq + Ma*aq + ga_mario - ga;  // +g (already compensated)
+ 	tau_task << Ca*dq + Ma*aq + ga_mario - ga;  // +g (already compensated)
 
   
 // //---------------- NULLSPACE CONTROL COMPUTATION -----------------//  
@@ -694,8 +698,9 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	 // =============  Estimation of tau ext (with momentum observer) ======= //
 	Vector7d beta_r,beta_l;  
-	Matrix<double,7,7> Cr_t, Cl_t; 
+	Matrix<double,7,7> Cr_t, Cl_t,Ko; 
 	Ko = KO*I7; // observer gain
+
 	Cr_t = c2_mario.transpose();
 	Cl_t = c1_mario.transpose(); 
 	
@@ -714,13 +719,20 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		pr_int_hat  = pr_dot_hat*(period.toSec()) + pr_int_hat;
 		r_l = Ko*(m1_mario*dq_l - pl_int_hat - p0_l); 
 		r_r = Ko*(m2_mario*dq_r - pr_int_hat - p0_r); 
-
 	}
 
-	//  ============ ESTIMATED EXT WRENCHES  =================  //
-		wrench_ext_r_hat = pinv(Jg_r_t)*r_r; 
-	  	wrench_ext_l_hat = pinv(Jg_l_t)*r_l; 
-	
+	//  ============ ESTIMATED EXT WRENCHES VIA MOMENTUM =================  //
+		Jr_inv = (Jg_r*m2_mario.inverse()*Jg_r_t).inverse()*Jg_r*(m2_mario.inverse());
+		Jl_inv = (Jg_l*m1_mario.inverse()*Jg_l_t).inverse()*Jg_l*(m1_mario.inverse());
+		wrench_ext_r_hat = Jr_inv*r_r; 
+	  	wrench_ext_l_hat = Jl_inv*r_l; 
+
+		Vector6d f_ext_l, f_ext_r; 
+		tau_ext_hat_l = tau_ext_hat_l - initial_tau_ext_l; 
+		tau_ext_hat_r = tau_ext_hat_r - initial_tau_ext_r; 
+		f_ext_l = Jl_inv*tau_ext_hat_l; 
+		f_ext_r = Jr_inv*tau_ext_hat_r; 
+
 		//DEBUG UTIL (CLEAN AFTER)
 		DQ x; DQ dx; DQ ddx; 
     	x = DQ(pose_a_d_); dx = DQ(dpose_a_d_); ddx = DQ(ddpose_a_d_); 
@@ -743,7 +755,9 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.wrench_ext_1[i] = - wrench_ext_l(i); 
 		info_debug_msg.wrench_ext_2[i] = - wrench_ext_r(i);
 		info_debug_msg.f_ext_hat_r[i] = wrench_ext_r_hat(i);  
-		info_debug_msg.f_ext_hat_l[i] = wrench_ext_l_hat(i);  
+		info_debug_msg.f_ext_hat_l[i] = wrench_ext_l_hat(i); 
+		info_debug_msg.f_franka_hat_r[i] = -f_ext_r(i);  
+		info_debug_msg.f_franka_hat_l[i] = -f_ext_l(i);   
 	}
 
 // //  // ------------- ABSOLUTE AND RELATIVE POSES --------- // // 
