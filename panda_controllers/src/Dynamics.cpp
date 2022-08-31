@@ -24,6 +24,8 @@ Dynamics::Dynamics(double rho, double phi, VectorXd Xb){
     // _Xb_M = ind_M.unaryExpr(Xb);
     // _Xb_F = ind_F.unaryExpr(Xb);
 
+    //
+
     XB_s1 = Xb(0), XB_s2 = Xb(1), XB_s3 = Xb(2), XB_s4 = Xb(3), XB_s5 = Xb(4), XB_s6 = Xb(5), XB_s7 = Xb(6), XB_s8 = Xb(7), XB_s9 = Xb(8), XB_s10 = Xb(9),
     XB_s11 = Xb(10), XB_s12 = Xb(11), XB_s13 = Xb(12), XB_s14 = Xb(13), XB_s15 = Xb(14), XB_s16 = Xb(15), XB_s17 = Xb(16), XB_s18 = Xb(17), XB_s19 = Xb(18), XB_s20 = Xb(19),
     XB_s21 = Xb(20), XB_s22 = Xb(21), XB_s23 = Xb(22), XB_s24 = Xb(23), XB_s25 = Xb(24), XB_s26 = Xb(25), XB_s27 = Xb(26), XB_s28 = Xb(27), XB_s29 = Xb(28), XB_s30 = Xb(29),

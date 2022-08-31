@@ -20,8 +20,6 @@ float64[6] wrench_ext_1 #ext wrench on left EE (WF)
 float64[6] wrench_ext_2 #ext wrench on left EE (WF)
 float64[6] f_ext_hat_l #estimated ext wrench left arm 
 float64[6] f_ext_hat_r #estimated ext wrench right arm 
-float64[6] f_franka_hat_l #estimated ext wrench left arm with franka ext torques
-float64[6] f_franka_hat_r #estimated ext wrench right arm with franka ext torques
 float64[3] rel_pos #relative position
 float64[3] abs_pos #absolute position
 float64[8] rel_pose #relative pose

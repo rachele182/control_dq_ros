@@ -244,7 +244,7 @@ void abs_traj (Vector3d pos_i, double time) {
   Vector3d tmp,pos_f; 
   double t_f,t; 
   double z_c; //contact with object
-  z_c = 0.14;  
+  z_c = 0.1;  
 
   if(time>=0 && time<10){ //go down 
     tmp << pos_i; 

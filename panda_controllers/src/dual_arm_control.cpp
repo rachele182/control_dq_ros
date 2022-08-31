@@ -32,18 +32,35 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    100   // proportional gain motion controller
+#define 	KP			    120   // proportional gain motion controller
 #define 	KD			    25    // derivative gain motion controller
-#define 	KP_ABS			80    // proportional gain motion controller
-#define 	KD_ABS			20    // derivative gain motion controller
-#define 	KO			    30  	  // gain momentum observer
+#define 	KP_ABS			80    // proportional gain motion controller absolute pose
+#define 	KD_ABS			20    // derivative gain motion controller absolute pose
+#define 	KO			    10  	// gain momentum observer
 #define     KI              50    // integrative term 
 #define 	D_JOINTS	    2     // dissipative term joints
 #define 	COLL_LIMIT		50    // 
 #define 	NULL_STIFF		2
 #define 	JOINT_STIFF		{3000, 3000, 3000, 3000, 3000, 2000, 100}
+#define     RHO             M_PI
+#define     PHI             0.0
 
 namespace panda_controllers {
+
+
+const std::vector<double> xb_l{0.0037098,0,0,1.0533,0.0069893,0.016746,-0.017196,1.0851,0.05302,
+							   -3.3354,0.015773,-0.0084357,-0.024244,-0.0011342,0.13237,0.73377,
+							   0.038657,0.68141,0.19473,-0.019112,0.011513,0.80562,-0.55995,
+							   2.0104,0.0065439,0.0066566,-0.016436,0.0016908,0.02867,-0.0019771,
+							   0.079215,-0.0024791,0.01832,-0.0043077,-0.010656,0.021632,0.21919,
+							   -0.15057,0.004553,-0.0042627,0.00478,-0.0050338,-0.0099489,
+							   0.0088923,0.0066226,0.00099815,-0.065664,-0.023295,-0.11583,
+							   0.05925,0.053991,0.058453,0.36506,0.23486,0.30838,0.51665,0.23973,
+							   0.24671,0.24841};
+Matrix<double, 59, 1> DualArmControl::Xb_l(xb_l.data());
+const std::vector<double> xb_r{
+	0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907}; 
+Matrix<double, 59, 1> DualArmControl::Xb_r(xb_r.data());
 
 // ---------- DQ_SERIAL_MANIPULATOR PANDA ROBOT ------- //
 DQ_SerialManipulator DualArmControl::init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O,double EE_offset) {
@@ -223,7 +240,9 @@ bool DualArmControl::init( hardware_interface::RobotHW* robot_hw,
 	ddpose_a_d_.setZero();                        	// nominal des acceleration
 	wrench_ext_l.setZero();                         // external wrench applied by left arm
 	wrench_ext_r.setZero();                         // external wrench applied by right arm
-	tau_limit << 87, 87, 87, 87, 12, 12, 12;  		// joint torques limit vector
+	tau_limit << 87, 87, 87, 87, 12, 12, 12;  		// joint torques limit vector	
+	
+
 	// Collision behaviours limits
 	collBehaviourSrvMsg.request.lower_torque_thresholds_acceleration 	= {COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT};
 	collBehaviourSrvMsg.request.upper_torque_thresholds_acceleration 	= {COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT, COLL_LIMIT};
@@ -237,7 +256,7 @@ bool DualArmControl::init( hardware_interface::RobotHW* robot_hw,
 	// Joint impedance
 	jointImpedanceSrvMsg.request.joint_stiffness = JOINT_STIFF;
 
-	
+
 	//====== Get the transformation from right_O_frame to left_O_frame ======== ///
 
 	tf::TransformListener listener;
@@ -351,27 +370,27 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 
 	//initialize momentum observe variables right arm
 	MatrixXd mass_in_r, mass_in_l,g_in_l, g_in_r; 
-	VectorXd Xb_r(59);
-   	Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
-    Dynamics dyn(M_PI, 0, Xb_r); 
-	mass_in_r = dyn.get_M(q_r_in); g_in_r = dyn.get_tau_G(q_r_in); 
+
+	//right arm 
+	Dynamics dyn_2(RHO,PHI,Xb_r);
+	mass_in_r = dyn_2.get_M(q_r_in);
+	g_in_r = dyn_2.get_tau_G(q_r_in); 
 	p0_r = mass_in_r*dq_r_in; 
 	r_r.setZero();
 	pr_int_hat.setZero(); 
 
-	//initialize momentum observer variables left arm
-	VectorXd Xb_l(59);
-	Xb_l << 0.0037098,0,0,1.0533,0.0069893,0.016746,-0.017196,1.0851,0.05302,-3.3354,0.015773,-0.0084357,-0.024244,-0.0011342,0.13237,0.73377,0.038657,0.68141,0.19473,-0.019112,0.011513,0.80562,-0.55995,2.0104,0.0065439,0.0066566,-0.016436,0.0016908,0.02867,-0.0019771,0.079215,-0.0024791,0.01832,-0.0043077,-0.010656,0.021632,0.21919,-0.15057,0.004553,-0.0042627,0.00478,-0.0050338,-0.0099489,0.0088923,0.0066226,0.00099815,-0.065664,-0.023295,-0.11583,0.05925,0.053991,0.058453,0.36506,0.23486,0.30838,0.51665,0.23973,0.24671,0.24841;
-	Dynamics dyn_2(M_PI, 0, Xb_l); 
-	mass_in_l = dyn_2.get_M(q_l_in); g_in_l = dyn_2.get_tau_G(q_l_in); 
-	p0_l = mass_in_l*dq_l_in; 
+	// left arm
+	Dynamics dyn(RHO,PHI,Xb_l);
+	mass_in_l = dyn.get_M(q_l_in);
+	g_in_l = dyn.get_tau_G(q_l_in); 
+	p0_l = mass_in_r*dq_l_in; 
 	r_l.setZero();
 	pl_int_hat.setZero(); 
-
 	// bias torque sensors
 	initial_tau_ext_r = initial_tau_measured_r - g_in_r;
 	initial_tau_ext_l = initial_tau_measured_l - g_in_l; 
 	count = 0;
+	t_init = ros::Time::now();
 	
  }
 
@@ -381,6 +400,7 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 
 void DualArmControl::update(const ros::Time& /*time*/,
                                           const ros::Duration &period /*period*/) {
+										
 
 //----------- VARIABLES DECLARATIONS and DEFINITIONS -------------//
     //Load Dual-Arm system
@@ -416,7 +436,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Vector3d e_pos_rel;           // rel position error (for debug)
 	Vector3d e_pos_abs;           // abs position error
 
-////------DQ Variables-----//
+//------DQ Variables-----//
 	DQ pos_d_dq; 
 	                               
 	// Jacobians
@@ -436,8 +456,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Matrix<double, 16, 14> J_aug_dot;      // derivative augmented Jacobian [Jr_dot,Ja_dot]
 	Matrix<double, 14, 16> J_aug_inv;      // augmented jacobian pseudo-inverse 
 	//Try dynamically consistent pseudo-inverse (inertia weighted)
-	Matrix<double, 14, 16> J_dyn_inv;      // augmented jacobian pseudo-inverse 
-    Matrix<double, 16, 14> J_aus;     
 
 // // ============================== GET ARMS STATE ======================== //
 
@@ -478,42 +496,31 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Matrix<double, 14, 1> ga_mario; // stacked gravity vector from mario model
 	Ma.setZero(); Ca.setZero(); 
 
-	std::array<double, 49> mass_array_right = arms_data_.at(right_arm_id_).model_handle_->getMass();
-	std::array<double, 7>  coriolis_array_right = arms_data_.at(right_arm_id_).model_handle_->getCoriolis();
 	std::array<double, 7>  gravity_array_right = arms_data_.at(right_arm_id_).model_handle_->getGravity(); 
 	std::array<double, 42> jacobian_array_right = arms_data_.at(right_arm_id_).model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
-
-	std::array<double, 49> mass_array_left = arms_data_.at(left_arm_id_).model_handle_->getMass();
-	std::array<double, 7>  coriolis_array_left = arms_data_.at(left_arm_id_).model_handle_->getCoriolis();
     std::array<double, 7>  gravity_array_left = arms_data_.at(left_arm_id_).model_handle_->getGravity(); 
 	std::array<double, 42> jacobian_array_left = arms_data_.at(left_arm_id_).model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
 	// Eigen conversion
-	Map<Matrix<double, 7, 7> > m1(mass_array_left.data());                      // mass matrix [kg]
-	Map<Matrix<double, 7, 7> > m2(mass_array_right.data());      
-	Map<Matrix<double, 7, 1> > c1(coriolis_array_left.data());                 // coriolis forces  [Nm]
-	Map<Matrix<double, 7, 1> > c2(coriolis_array_right.data());    
     Map<Matrix<double, 7, 1> > g1(gravity_array_left.data());                  // gravity vector from franka 
 	Map<Matrix<double, 7, 1> > g2(gravity_array_right.data());
 	Map<Matrix<double, 6, 7> > Jg_l(jacobian_array_left.data());
 	Map<Matrix<double, 6, 7> > Jg_r(jacobian_array_right.data());
+
 	Jg_l_t = Jg_l.transpose();
 	Jg_r_t = Jg_r.transpose();
 
-
 	//----------DYNAMIC MODEL MARIO RIGHT ARM (NO EE)------------//
-	VectorXd Xb_r(59);
-    Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
-    Dynamics dyn(M_PI, 0, Xb_r); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
-    MatrixXd m2_mario; MatrixXd c2_mario; MatrixXd g2_mario; MatrixXd f2_mario; 
-	m2_mario = dyn.get_M(q_r); c2_mario = dyn.get_C(q_r,dq_r); g2_mario = dyn.get_tau_G(q_r); 
+	Dynamics dyn_2(RHO,PHI,Xb_r);
+    MatrixXd m2_mario; MatrixXd c2_mario; MatrixXd g2_mario;
+	// m2_mario = dyn(M_PI, 0, Xb_r).get_M(q_r); c2_mario = dyn(M_PI, 0, Xb_r).get_C(q_r,dq_r); g2_mario = dyn(M_PI, 0, Xb_r).get_tau_G(q_r); 
+	m2_mario = dyn_2.get_M(q_r); c2_mario = dyn_2.get_C(q_r,dq_r); g2_mario = dyn_2.get_tau_G(q_r); 
 
-    // LEFT ARM
-	VectorXd Xb_l(59);
-    Xb_l << 0.0037098,0,0,1.0533,0.0069893,0.016746,-0.017196,1.0851,0.05302,-3.3354,0.015773,-0.0084357,-0.024244,-0.0011342,0.13237,0.73377,0.038657,0.68141,0.19473,-0.019112,0.011513,0.80562,-0.55995,2.0104,0.0065439,0.0066566,-0.016436,0.0016908,0.02867,-0.0019771,0.079215,-0.0024791,0.01832,-0.0043077,-0.010656,0.021632,0.21919,-0.15057,0.004553,-0.0042627,0.00478,-0.0050338,-0.0099489,0.0088923,0.0066226,0.00099815,-0.065664,-0.023295,-0.11583,0.05925,0.053991,0.058453,0.36506,0.23486,0.30838,0.51665,0.23973,0.24671,0.24841;
-    Dynamics dyn_2(M_PI, 0, Xb_l); // left: (M_PI_2, M_PI_2, Xb), right: (-M_PI_2, M_PI_2, Xb)
-    MatrixXd m1_mario; MatrixXd c1_mario; MatrixXd g1_mario; MatrixXd f1_mario; 
-	m1_mario = dyn_2.get_M(q_l); c1_mario = dyn_2.get_C(q_l,dq_l); g1_mario = dyn_2.get_tau_G(q_l); 
+	// Left arm
+	Dynamics dyn(RHO,PHI,Xb_l);
+    MatrixXd m1_mario; MatrixXd c1_mario; MatrixXd g1_mario;
+	// m1_mario = dyn(M_PI, 0, Xb_l).get_M(q_l); c1_mario = dyn(M_PI, 0, Xb_l).get_C(q_l,dq_l); g1_mario = dyn(M_PI, 0, Xb_l).get_tau_G(q_l); 
+	m1_mario = dyn.get_M(q_l); c1_mario = dyn.get_C(q_l,dq_l); g1_mario = dyn.get_tau_G(q_l); 
 
 	// Mario model
 	Ma.block(0,0,7,7) << m1_mario; Ma.block(7,7,7,7) << m2_mario;
@@ -521,14 +528,11 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	ga_mario.head(7) << g1_mario; ga_mario.tail(7) = g2_mario;  
 	ga.head(7) << g1; ga.tail(7) = g2;  
 	
-
 	//Retrieve measured torques and ext forces from franka
 	Map<Matrix<double, 7, 1> > tau_J_d_left(robot_state_left.tau_J_d.data());                // previous cycle commanded torques [Nm]
 	Map<Matrix<double, 6, 1> > wrench_ext_l(robot_state_left.O_F_ext_hat_K.data());          // external wrench [N] exerted by arm1 wrt base frame
-	Map<Matrix<double, 7, 1> > tau_ext_hat_l(robot_state_left.tau_ext_hat_filtered.data());  // external torque arm1 
 	Map<Matrix<double, 7, 1> > tau_J_d_right(robot_state_right.tau_J_d.data());              // previous cycle commanded torques [Nm]
 	Map<Matrix<double, 6, 1> > wrench_ext_r(robot_state_right.O_F_ext_hat_K.data());         // external wrench [N] exerted by arm2 wrt base frame
-	Map<Matrix<double, 7, 1> > tau_ext_hat_r(robot_state_right.tau_ext_hat_filtered.data()); // external torque arm2
 
 // 	Get current CDTS variables
     DQ pose_rel_dq;
@@ -575,9 +579,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 // //  -------------- PUBLISH MATRICES FOR PLANNING -------------//
 
 	robot_state_msg.header.stamp = ros::Time::now();
-	std::copy(mass_array_left.begin(), mass_array_left.end(), robot_state_msg.m1.begin());
-	std::copy(mass_array_right.begin(), mass_array_right.end(), robot_state_msg.m2.begin());
-
 	pub_robot_state_.publish(robot_state_msg);
 
 // //================= COMPUTE ERRORS ================//
@@ -598,20 +599,13 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	// ==== Store variables for analysis === //
 	
 	DQ des_pos_a_dq; Vector3d des_pos_abs;  DQ des_pos_r_dq; Vector3d des_pos_rel; 
-	Vector3d n_abs, des_n_abs, n_rel,des_n_rel; double phi_abs, des_phi_abs, phi_rel,des_phi_rel;  
 
-	//des absolute pos and rot
+	//des absolute pos 
     des_pos_a_dq = (DQ(pose_a_d_)).normalize(); 
 	des_pos_abs = vec3(des_pos_a_dq.translation()); 
-	des_n_abs = vec3(des_pos_a_dq.rotation_axis()); des_phi_abs = double(des_pos_a_dq.rotation_angle()); 
-	//des relative pos and rot
+	//des relative pos 
 	des_pos_r_dq = (DQ(pose_r_d_)).normalize();
 	des_pos_rel = vec3(des_pos_r_dq.translation()); 
-	des_n_rel = vec3(des_pos_r_dq.rotation_axis()); des_phi_rel = double(des_pos_r_dq.rotation_angle()); 
-
-	//current abs and rel rot
-	n_abs = vec3(pose_abs_dq.rotation_axis()); phi_abs = double(pose_abs_dq.rotation_angle());
-	n_rel = vec3(pose_rel_dq.rotation_axis()); phi_rel = double(pose_rel_dq.rotation_angle());
 
 	//position error
     e_pos_rel = des_pos_rel - pos_rel; 
@@ -640,6 +634,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 // Control input task space
    ax << ddx_des + gain_d*de_aug + gain_p*e_aug  - J_aug_dot*dq;	
+
    J_aug_inv << pinv(J_aug); 
 
 // Control input joint space
@@ -648,9 +643,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
    
 //---------------- CONTROL COMPUTATION -----------------//
 	
- 	tau_task << Ca*dq + Ma*aq + ga_mario - ga;  // +g (already compensated)
-
-  
+	tau_task << Ca*dq + Ma*aq + ga_mario - ga;  // +g (already compensated)
+	
 // //---------------- NULLSPACE CONTROL COMPUTATION -----------------//  
 
    N1 =  I7 -  pinv(J1)*J1; // null-space projector left arm
@@ -663,8 +657,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	
 //----------------- FINAL CONTROL --------------------------------//
 	
-   tau_d_left << tau_task.head(7) + tau_null_left; 
-   tau_d_right << tau_task.tail(7) + tau_null_right; 
+   tau_d_left << tau_task.head(7) + 0*tau_null_left; 
+   tau_d_right << tau_task.tail(7) + 0*tau_null_right; 
 
 // // 	//=================================| END CONTROL |==================================//
 	
@@ -688,7 +682,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		if( ith_torque_rate_r > 1)
 			tau_d_right = tau_d_right / ith_torque_rate_r;
 	}
-
 
  	////Set arm command torques
 	for (size_t i = 0; i < 7; ++i) {
@@ -722,16 +715,10 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	}
 
 	//  ============ ESTIMATED EXT WRENCHES VIA MOMENTUM =================  //
-		Jr_inv = (Jg_r*m2_mario.inverse()*Jg_r_t).inverse()*Jg_r*(m2_mario.inverse());
-		Jl_inv = (Jg_l*m1_mario.inverse()*Jg_l_t).inverse()*Jg_l*(m1_mario.inverse());
+		Jr_inv = (Jg_r*m2_mario.inverse()*Jg_r_t).inverse()*Jg_r*(m2_mario.inverse()); // right arm
+		Jl_inv = (Jg_l*m1_mario.inverse()*Jg_l_t).inverse()*Jg_l*(m1_mario.inverse()); // left arm
 		wrench_ext_r_hat = Jr_inv*r_r; 
 	  	wrench_ext_l_hat = Jl_inv*r_l; 
-
-		Vector6d f_ext_l, f_ext_r; 
-		tau_ext_hat_l = tau_ext_hat_l - initial_tau_ext_l; 
-		tau_ext_hat_r = tau_ext_hat_r - initial_tau_ext_r; 
-		f_ext_l = Jl_inv*tau_ext_hat_l; 
-		f_ext_r = Jr_inv*tau_ext_hat_r; 
 
 		//DEBUG UTIL (CLEAN AFTER)
 		DQ x; DQ dx; DQ ddx; 
@@ -756,8 +743,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.wrench_ext_2[i] = - wrench_ext_r(i);
 		info_debug_msg.f_ext_hat_r[i] = wrench_ext_r_hat(i);  
 		info_debug_msg.f_ext_hat_l[i] = wrench_ext_l_hat(i); 
-		info_debug_msg.f_franka_hat_r[i] = -f_ext_r(i);  
-		info_debug_msg.f_franka_hat_l[i] = -f_ext_l(i);   
 	}
 
 // //  // ------------- ABSOLUTE AND RELATIVE POSES --------- // // 
@@ -769,16 +754,12 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.pos_2[i] = pos_r_(i); 
 		info_debug_msg.er[i] = e_pos_rel(i); 
 		info_debug_msg.ea[i] = e_pos_abs(i); 
-		info_debug_msg.e_n_abs[i] = des_n_abs(i)-n_abs(i); 
-		info_debug_msg.e_n_rel[i] = des_n_rel(i)-n_rel(i); 
 		info_debug_msg.vel_d[i] = p_dot(i); 
 		info_debug_msg.acc_d[i] = acc_dot(i); 
 		info_debug_msg.vel[i] = (twist.tail(3))(i); 
 		info_debug_msg.omega[i] = (twist.head(3))(i); 
 	}
 
-    info_debug_msg.e_phi_abs = des_phi_abs - phi_abs;
-    info_debug_msg.e_phi_rel = des_phi_rel - phi_rel;
 	info_debug_msg.abs_norm = e_pos_abs.norm();
 	info_debug_msg.rel_norm = e_pos_rel.norm();
 
@@ -792,8 +773,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
     pub_info_debug.publish(info_debug_msg);
 	
 	count = count+1; 
+	t_init = ros::Time::now();
 	
-
 }
 // // //---------------------------------------------------------------//
 // // //                    	TORQUE SATURATION                    	 //

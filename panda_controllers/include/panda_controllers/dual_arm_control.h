@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <array>
 #include <Eigen/Dense>
 // ROS
 #include <ros/ros.h>
@@ -50,6 +51,7 @@ typedef Matrix<double, 16, 1> Vector16d;
 typedef Matrix<double, 14, 1> Vector14d;
 
 using namespace DQ_robotics;
+using namespace std; 
 using DQ_robotics::DQ; using DQ_robotics::DQ_Kinematics; using DQ_robotics::DQ_SerialManipulator; using DQ_robotics::DQ_CooperativeDualTaskSpace;
 
 namespace panda_controllers {
@@ -91,6 +93,10 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		ros::ServiceClient collBehaviourClient;
 		franka_msgs::SetJointImpedance jointImpedanceSrvMsg;
 		ros::ServiceClient jointImpedanceClient;		
+
+		static Matrix<double, 59, 1> Xb_l;
+		static Matrix<double, 59, 1> Xb_r;
+
  	private:
 		std::map<std::string, FrankaDataContainer>
      		 arms_data_;             ///< Holds all relevant data for both arms.
@@ -124,6 +130,8 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
         DQ_SerialManipulator init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O,double EE_offset); // DQ panda representation
 		// ------DQ dual Panda representation---//
   		DQ_CooperativeDualTaskSpace init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2);
+
+		Dynamics init_par(double rho,double phi,VectorXd Xb); 
 
 		MatrixXd geomJ(const MatrixXd& absoluteposeJ, const DQ& absolutepose);
         //Utils
@@ -194,9 +202,10 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		Vector7d pr_int_hat; 
 		Vector7d p0_r;  
 		int count; 
-	
+		ros::Time t_init; 
+	    //Dynamics model
+		// Dynamics dyn(double rho, double phi, VectorXd Xb); 
 
-	
 		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_compl_traj_proj_;
 		void CompliantTrajCallback(const panda_controllers::CompliantTraj::ConstPtr& msg);
