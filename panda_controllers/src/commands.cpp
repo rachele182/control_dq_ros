@@ -244,31 +244,28 @@ void abs_traj (Vector3d pos_i, double time) {
   Vector3d tmp,pos_f; 
   double t_f,t; 
   double z_c; //contact with object
-  z_c = 0.1;  
+  z_c = 0.3;  
 
-  if(time>=0 && time<10){ //go down 
+  if(time>=0 && time<7){ //go down 
     tmp << pos_i; 
-    // pos_f << pos_i(0), pos_i(1), pos_i(2)-0.2; 
     pos_f << pos_i(0), pos_i(1), z_c; 
-    t_f = 10; 
+    t_f = 7; 
     t = time;
-  }else if (time>=10 && time<12){ //pause
-    // tmp << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+  }else if (time>=7 && time<9){ //pause
     tmp << pos_i(0), pos_i(1), z_c; 
     pos_f << tmp; 
     t_f = 2;
-    t = time - 10; 
-  }else if (time>=12 && time<22){ //go up
-    // tmp << pos_i(0), pos_i(1), pos_i(2)-0.2; 
+    t = time - 7; 
+  }else if (time>=9 && time<16){ //go up
     tmp << pos_i(0), pos_i(1), z_c; 
     pos_f << pos_i(0), pos_i(1), pos_i(2);
-    t_f = 10;
-    t = time - 12; 
+    t_f = 7;
+    t = time - 9; 
   }else {
     tmp << pos_i(0), pos_i(1), pos_i(2); 
     pos_f << tmp;
     t_f = 1000; 
-    t = time - 22; 
+    t = time - 16; 
   }
    traj_t.p_des << tmp + (tmp - pos_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
    traj_t.v_des << (tmp - pos_f)*(60*(pow(t,3)/pow(t_f,4)) - 30*(pow(t,4)/pow(t_f,5)) -30*(pow(t,2)/pow(t_f,3)));
@@ -502,7 +499,7 @@ int main(int argc, char **argv)
       cout<<"insert time_f: "<<endl;
       cin>>tf;   
     }else if (choice == 4){
-      tf = 30; 
+      tf = 20; 
       cout<< "dual_arm_control? (0:no 1:yes)"<<endl; 
       cin >> dual; 
     }else if(choice == 5){

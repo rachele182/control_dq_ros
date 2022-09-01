@@ -3,7 +3,7 @@
 
 
 #define     MASS          1.5                         // [kg]         apparent mass
-#define     Kr_DEFAULT    300                         // [Nm]         default relative stiffness
+#define     Kr_DEFAULT    500                         // [Nm]         default relative stiffness
 #define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
 #define     Ka_DEFAULT    300                         // [Nm]         default absolutestiffness
 #define     SC            4                          // empyrically overdamping factor        
@@ -86,9 +86,11 @@ void dual_impedance_loop::wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ 
     Ma = wrench_1.tail(3) + (p1_a).cross(f1) + wrench_2.tail(3) + (p2_a).cross(f2); // abs torque
     Mr = 0.5*(wr2_1.tail(3)- wr1_1.tail(3)); // rel torque
     wa.head(3) << fa; 
-    wa.tail(3) << Ma; 
+    // wa.tail(3) << Ma; 
+    wa.tail(3).setZero();
     wr.head(3) << fr;  
-    wr.tail(3) << Mr;
+    // wr.tail(3) << Mr;
+    wr.tail(3).setZero();
     coop_wrench.wa = wa; coop_wrench.wr = wr; 
 }
    

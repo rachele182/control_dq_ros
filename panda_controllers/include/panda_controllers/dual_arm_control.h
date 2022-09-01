@@ -131,9 +131,6 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		// ------DQ dual Panda representation---//
   		DQ_CooperativeDualTaskSpace init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2);
 
-		Dynamics init_par(double rho,double phi,VectorXd Xb); 
-
-		MatrixXd geomJ(const MatrixXd& absoluteposeJ, const DQ& absolutepose);
         //Utils
 		bool var_damp; 
 		std::string name_space;    
@@ -203,6 +200,7 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		Vector7d p0_r;  
 		int count; 
 		ros::Time t_init; 
+		double t; 
 	    //Dynamics model
 		// Dynamics dyn(double rho, double phi, VectorXd Xb); 
 
@@ -216,11 +214,8 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 
 
 		// //----------PUBLISHERS----------//
-		ros::Publisher pub_EE1_pose_;
-		ros::Publisher pub_EE2_pose_;
 		ros::Publisher pub_robot_state_;
 		ros::Publisher pub_info_debug;
-		void publishCenteringPose();
 
         // //----------MESSAGES----------//
 		panda_controllers::InfoDebug info_debug_msg;	
