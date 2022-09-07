@@ -4,10 +4,10 @@
 
 #define     MASS          1.5                         // [kg]         apparent mass
 #define     K_DEFAULT     300                         // [Nm]         default stiffness
-#define     D_DEFAULT     4*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default damping             
+#define     D_DEFAULT     6*sqrt(K_DEFAULT*MASS);     // [Ns/m]       default damping             
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
-#define     K_INIT        200                         // [Nm]         default translational stiffness
+#define     K_INIT        300                         // [Nm]         default translational stiffness
 #define     D_INIT        2*sqrt(K_DEFAULT*MASS);     // [Ns/m]        default translational damping
 #define     DZ_VALUE_F    1.5                           // dead zone value ext forces (?)       
 #define     DZ_VALUE_M    0.5                         // dead zone value ext torques (?)   
@@ -79,9 +79,7 @@ void impedance_loop::admittance_eq(Vector6d flog,Vector6d y_hat,Vector6d dy_hat,
         }
 
 void impedance_loop::compute_pose_disp(Vector6d y_hat,Vector6d dy_hat,Vector6d ddy_hat){
-        DQ y_hat_dq; 
-        DQ x_hat_dq;
-        DQ dx_hat_dq; 
+        DQ y_hat_dq, x_hat_dq, dx_hat_dq; 
         y_hat_dq = DQ(y_hat); 
         disp.x_hat = vec8(exp(y_hat_dq));
         x_hat_dq = DQ(disp.x_hat);
@@ -95,15 +93,11 @@ void impedance_loop::compute_pose_disp(Vector6d y_hat,Vector6d dy_hat,Vector6d d
 
 void impedance_loop::compute_traj(Vector8d x_d,Vector8d dx_d,Vector8d ddx_d,
         Vector8d x_hat,Vector8d dx_hat,Vector8d ddx_hat){
-        DQ x_hat_dq; 
-        DQ dx_hat_dq;
-        DQ ddx_hat_dq;
+        DQ x_hat_dq, dx_hat_dq,ddx_hat_dq;
         x_hat_dq = DQ(x_hat);
         dx_hat_dq = DQ(dx_hat);
         ddx_hat_dq = DQ(ddx_hat);
-        DQ x_d_dq; 
-        DQ dx_d_dq;
-        DQ ddx_d_dq;
+        DQ x_d_dq, dx_d_dq, ddx_d_dq;
         x_d_dq = DQ(x_d);
         dx_d_dq = DQ(dx_d);
         ddx_d_dq = DQ(ddx_d);
@@ -179,7 +173,7 @@ void impedance_loop::update(){
    DQ x_hat_dq;  // displacement between nominal and computed DQ
    DQ pos_in_dq; // DQ initial EE position
    DQ rot_in_dq; // DQ initial EE orientation
-   DQ pose_d_dq; 
+   DQ pose_d_dq; // DQ des nominal pose
    Vector3d position_c;
    Vector8d pose_nom;
    pose_nom << 1,0,0,0,0,0,0,0;
@@ -213,7 +207,7 @@ void impedance_loop::update(){
       fx_prec = 0; fy_prec = 0; fz_prec = 0;
   }
 
-  fx_prec = fx;fy_prec = fy;fz_prec = fz;
+  fx_prec = fx; fy_prec = fy; fz_prec = fz;
   fx = wrench_n(0); fy = wrench_n(1); fz = wrench_n(2); 
   fx = Filter(fx,fx_prec); 
   fy = Filter(fy,fy_prec); 
@@ -233,15 +227,15 @@ void impedance_loop::update(){
 
   t = ros::Time::now().toSec();
 
-   admittance_eq(f_log,adm_eq.y_hat, adm_eq.dy_hat,
+  admittance_eq(f_log,adm_eq.y_hat, adm_eq.dy_hat,
          KD, BD, MD, time_prec, t);
 
   time_prec = t;
 
-  //Compute frames displacement
+  // Compute frames displacement
   compute_pose_disp(adm_eq.y_hat,adm_eq.dy_hat,adm_eq.ddy_hat);
 
-  //Compute compliant trajectory
+  // Compute compliant trajectory
 
   compute_traj(pose_d_,dpose_d_,ddpose_d_,disp.x_hat,disp.dx_hat,disp.ddx_hat);
 

@@ -98,7 +98,6 @@ class dual_impedance_loop{
         Matrix<double, 6, 6> MD;              // virtual mass 
         Matrix<double, 6, 6> KD_a;            // virtual stiffness absolute
         Matrix<double, 6, 6> BD_a;            // virtual damping absolute
-        Vector6d wrench_ext_hat;              // Estimated External Wrench left arm via momemntum observer 6x1
         Vector6d wrench_ext_l_;               // External Wrench left arm 6x1
         Vector6d wrench_ext_r_;               // External Wrench right arm 6x1 
         Vector6d wrench_ext_n_l_;             // Filtered External Wrench left arm 6x1

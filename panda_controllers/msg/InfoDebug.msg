@@ -18,6 +18,8 @@ float64[7] tau_left #computed torque for left arm
 float64[7] tau_right #computed torque for right arm
 float64[7] tau_l_mes #measured torque for left arm
 float64[7] tau_r_mes #measured torque for right arm
+float64[7] r_l #measured torque for left arm
+float64[7] r_r #measured torque for right arm
 float64[6] wrench_ext_1 #ext wrench on left EE (WF)
 float64[6] wrench_ext_2 #ext wrench on left EE (WF)
 float64[6] f_ext_hat_l #estimated ext wrench left arm 
@@ -34,3 +36,5 @@ float64[3] er #relative position error
 float64[3] ea #absolute position error
 float64 abs_norm #absolute error norm
 float64 rel_norm
+float64[3] vel_d #relative position error
+float64[3] acc_d #absolute position error

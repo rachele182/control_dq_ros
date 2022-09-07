@@ -2,16 +2,16 @@
 #include <geometry_msgs/PoseStamped.h>
 
 
-#define     MASS          1.5                         // [kg]         apparent mass
-#define     Kr_DEFAULT    500                         // [Nm]         default relative stiffness
-#define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
-#define     Ka_DEFAULT    300                         // [Nm]         default absolutestiffness
-#define     SC            4                          // empyrically overdamping factor        
-#define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);   // [Ns/m]       default absolute damping          
+#define     MASS          1.5                          // [kg]         apparent mass
+#define     SC            6                            // empyrically overdamping factor     
+#define     Kr_DEFAULT    300                          // [Nm]         default relative stiffness
+#define     Dr_DEFAULT    SC*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
+#define     Ka_DEFAULT    500                          // [Nm]         default absolutestiffness   
+#define     Da_DEFAULT    2*sqrt(Ka_DEFAULT*MASS);     // [Ns/m]       default absolute damping          
 #define     K_ROT         500               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
-#define     DZ_VALUE_F    5                           // dead zone value ext forces (?)       
-#define     DZ_VALUE_M    1.5                         // dead zone value ext torques (?)       
+#define     DZ_VALUE_F    2.0                         // dead zone value ext forces (?)       
+#define     DZ_VALUE_M    0.5                         // dead zone value ext torques (?)       
 
 using namespace DQ_robotics;   using namespace panda_controllers; 
 using DQ_robotics::E_;
@@ -180,8 +180,7 @@ bool dual_impedance_loop::init(ros::NodeHandle& node_handle){
     t = ros::Time::now().toSec(); // current ros time
     t_init = ros::Time::now();
     //Ext wrenches left arm 
-    wrench_ext_hat.setZero();  wrench_ext_n_l_.setZero(); 
-    wrench_ext_l_.setZero(); 
+    wrench_ext_n_l_.setZero(); wrench_ext_l_.setZero(); 
     fx_l = 0; fy_l = 0; fz_l = 0; 
     fx_l_prec = 0; fy_l_prec = 0; fz_l_prec = 0; 
     //Ext wrenches right arm 
@@ -226,8 +225,7 @@ void dual_impedance_loop::update(){
    Vector6d wrench_rel,wrench_abs,f_log_a, f_log_r; //mapped ext wrenches
    
    // DQ nominal desired poses
-   pose_a_d_dq = (DQ(pose_d_)).normalize(); 
-   pose_r_d_dq = (DQ(pose_r_d_)).normalize(); 
+   pose_a_d_dq = (DQ(pose_d_)).normalize();  pose_r_d_dq = (DQ(pose_r_d_)).normalize(); 
    
    //=== Relative impedance
    KD_r(0,0)= K_ROT; KD_r(1,1)= K_ROT; KD_r(2,2)= K_ROT; //rotational
@@ -245,11 +243,10 @@ void dual_impedance_loop::update(){
    x1_dq = DQ(x1_); x2_dq = DQ(x2_); xr_dq = DQ(xr_); xa_dq = DQ(xa_);
    x1_dq = x1_dq.normalize(); x2_dq = x2_dq.normalize(); xr_dq = xr_dq.normalize(); xa_dq = xa_dq.normalize();
 
-  // //Dead zone for estimated external forces acting on EEs
-  // wrench_ext_l_ = dead_zone(wrench_ext_l_,DZ_VALUE_F,DZ_VALUE_M); 
-  // // for right arm take estimated one vias momentum
-  // wrench_ext_hat = dead_zone(wrench_ext_hat,DZ_VALUE_F,DZ_VALUE_M);  
-   
+  //Dead zone for estimated external forces acting on EEs
+  wrench_ext_l_ = dead_zone(wrench_ext_l_,DZ_VALUE_F, DZ_VALUE_M ); 
+  wrench_ext_r_ = dead_zone(wrench_ext_r_,DZ_VALUE_F, DZ_VALUE_M );
+
   //EMA filter for ext forces
   if(count==0){
     fx_l_prec = 0; fy_l_prec = 0; fz_l_prec = 0;

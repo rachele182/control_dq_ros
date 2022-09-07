@@ -109,10 +109,7 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
   		///< Rate to trigger publishing the current pose of the centering frame.
   		franka_hw::TriggerRate publish_rate_;
 
-		// ----------------- //
-
 		//----------FRANKA ---------// 
-
 		 /**
    		* Saturates torque commands to ensure feasibility.
    		*
@@ -133,10 +130,10 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 
         //Utils
 		bool var_damp; 
-		std::string name_space;    
+		std::string name_space;   
+		double scale(double tf);  
 		/**
    		* Initializes a single Panda robot arm.
-   		
    		* @param[in] robot_hw A pointer the RobotHW class for getting interfaces and resource handles.
    		* @param[in] arm_id The name of the panda arm.
    		* @param[in] joint_names The names of all joints of the panda.
@@ -151,7 +148,6 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
    		*
    		* @param[in] arm_data The data container of the arm to control.
    		*/                                            
-
 		//----------VARIABLES----------//
 		Matrix<double, 7, 1> tau_limit;                    // joint torque limits vector [Nm], from datasheet https://frankaemika.github.io/docs/control_parameters.html
 		const double delta_tau_max_{1.0};                  // torque rate limit [Nm/ms], from datasheet https://frankaemika.github.io/docs/control_parameters.html
@@ -189,20 +185,26 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		Matrix<double, 7, 7> I7;
 		Matrix<double, 16, 16> I16;
 	    //Momentum observer Variables
-		Matrix<double, 7, 7> Ko; //observer gain
+		int l_counter; 
+		int r_counter; 
+		int reset_l; 
+		int reset_r; 
+		int st; 
+		Vector7d rl_tmp;  
+		Vector7d rr_tmp;  
 		Vector7d r_l;  //observer output left arm
 		Vector7d pl_dot_hat;
-		Vector7d pl_int_hat; 
+		Vector7d pl_int_hat;  
 		Vector7d p0_l;  
+		Vector7d p_l;  
 		Vector7d r_r;  //observer output right EM
+		Vector7d p_r;  
 		Vector7d pr_dot_hat;
-		Vector7d pr_int_hat; 
+		Vector7d pr_int_hat;  
 		Vector7d p0_r;  
 		int count; 
 		ros::Time t_init; 
 		double t; 
-	    //Dynamics model
-		// Dynamics dyn(double rho, double phi, VectorXd Xb); 
 
 		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_compl_traj_proj_;
@@ -211,7 +213,6 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		//----------SUBSCRIBERS----------//
 		ros::Subscriber sub_nom_traj_proj_;
 		void desiredProjectTrajectoryCallback(const panda_controllers::DesiredProjectTrajectoryConstPtr& msg);
-
 
 		// //----------PUBLISHERS----------//
 		ros::Publisher pub_robot_state_;
