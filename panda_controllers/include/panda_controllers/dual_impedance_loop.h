@@ -139,9 +139,9 @@ class dual_impedance_loop{
 
 
 
-    //     // desired impedance
-    //     ros::Subscriber sub_des_imp_proj_;
-	// 	void desiredImpedanceProjectCallback(const panda_controllers::DesiredImpedanceConstPtr& msg);
+       // desired impedance
+        ros::Subscriber sub_des_imp_proj_;
+		void desiredImpedanceProjectCallback(const panda_controllers::DesiredImpedanceConstPtr& msg);
 
     //------------PUBLISHERS-----//
         ros::Publisher pub_compliant_traj;

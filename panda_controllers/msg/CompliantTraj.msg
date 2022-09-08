@@ -23,8 +23,9 @@ float64[3] acc_rel_c #computed linear acceleration for relative
 float64[3] pos_abs_c #computed position for absolute
 float64[3] vel_abs_c #computed linear velocity for absolute
 float64[3] acc_abs_c #computed linear acceleration for absolute
-float64[3] f1_f #ext force arm1 filtered
-float64[3] f2_f #ext force arm2 filtered
+float64[3] fa_f #ext force abs filtered
+float64[3] fr_f #ext force rel filtered
 float64[3] fa #absolute force
 float64[3] fr #relative force
- 
+float64[3] fr_rel_frame #ext force rel (relative frame)
+float64[3] stiff

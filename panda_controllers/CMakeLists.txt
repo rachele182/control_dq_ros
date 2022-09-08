@@ -114,13 +114,13 @@ add_executable(commands
   src/commands.cpp
 )
 
-# add_executable(modulator
-#   src/modulator.cpp
-# )
-
-add_executable(modulator_2
-  src/modulator_2.cpp
+add_executable(modulator
+  src/modulator.cpp
 )
+
+# add_executable(modulator_2
+#   src/modulator_2.cpp
+# )
 
 # add_executable(dq_trajectory
 #    src/dq_trajectory.cpp
@@ -140,17 +140,17 @@ target_link_libraries(commands PUBLIC
   dqrobotics
 )
 
-# target_link_libraries(modulator PUBLIC
-#   ${Franka_LIBRARIES}
-#   ${catkin_LIBRARIES}
-#   dqrobotics
-# )
-
-target_link_libraries(modulator_2 PUBLIC
+target_link_libraries(modulator PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
   dqrobotics
 )
+
+# target_link_libraries(modulator_2 PUBLIC
+#   ${Franka_LIBRARIES}
+#   ${catkin_LIBRARIES}
+#   dqrobotics
+# )
 
 # target_link_libraries(dq_trajectory PUBLIC
 #   ${Franka_LIBRARIES}

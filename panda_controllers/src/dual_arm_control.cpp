@@ -34,9 +34,9 @@ using namespace DQ_robotics;
 
 #define 	KP			    120.0   // proportional gain motion controller
 #define 	KD			    20.0    // derivative gain motion controller
-#define 	KP_ABS			80.0    // proportional gain motion controller absolute pose
+#define 	KP_ABS			100.0    // proportional gain motion controller absolute pose
 #define 	KD_ABS			20.0    // derivative gain motion controller absolute pose
-#define 	KO			    10.0  	// gain momentum observer
+#define 	KO			    4.0  	// gain momentum observer
 #define     KI              50.0    // integrative term 
 #define 	D_JOINTS	    2.0    // dissipative term joints
 #define 	COLL_LIMIT		50.0   // 
@@ -499,9 +499,9 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	Matrix<double, 14, 14> Ma; //stacked mass matrix
 	Matrix<double, 14, 14> Ca; //stacked coriolis matrix
-	Matrix<double, 14, 1> ga; //stacked gravity vector from model
-	Matrix<double, 14, 1> fa; //stacked friction vector from model
-	Matrix<double, 14, 1> ga_mario; // stacked gravity vector from mario model
+	Matrix<double, 14, 1> ga;      //stacked gravity vector from model
+	Matrix<double, 14, 1> fa; 					 //stacked friction vector from model
+	Matrix<double, 14, 1> ga_mario; 			 // stacked gravity vector from mario model
 	Matrix <double, 6,7> Jr_inv;				 // dynamically consistenst pseudo-inverse of J^T
 	Matrix <double, 6,7> Jl_inv;				 // dynamically consistenst pseudo-inverse of J^T
 	Ma.setZero(); Ca.setZero(); 
@@ -714,17 +714,11 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	p_l = m1_mario*dq_l;  
 	p_r = m2_mario*dq_r;
 	
-	for(int i=0; i<7; i++){
-		if(abs(dq_l(i))<=0.005){ //motion negligible
-			tau_measured_l(i) = tau_measured_l(i) - initial_tau_ext_l(i);
-	}
-	}
 
-	for(int i=0; i<7; i++){
-		if(abs(dq_r(i))<=0.005){
-			tau_measured_r(i) = tau_measured_r(i) - initial_tau_ext_r(i); 
-	}
-	}
+	tau_measured_l = tau_measured_l - initial_tau_ext_l;
+	
+	tau_measured_r = tau_measured_r - initial_tau_ext_r; 
+
 	
 	if(count==0){
 		r_l.setZero();
@@ -738,13 +732,13 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		pl_int_hat  = pl_dot_hat*(period.toSec()) + pl_int_hat;
 		pr_int_hat  = pr_dot_hat*(period.toSec()) + pr_int_hat;
 
-		for(int i = 0; i<7; i++){
+	for(int i = 0; i<7; i++){
 		r_l(i) = gain_l*(p_l(i) - pl_int_hat(i) - p0_l(i));
 		r_r(i) = gain_r*(p_r(i) - pr_int_hat(i) - p0_r(i));
-	}
+		}
 
 	}
-	
+
 	wrench_ext_l_hat = Jl_inv*r_l;
 	wrench_ext_r_hat = Jr_inv*r_r;
 

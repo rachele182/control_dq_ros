@@ -24,12 +24,11 @@
 // DEFINE CONSTANTS
 #define     F_MAX       6                           // [N]          disturbance threshold (from dead-zone computation)
 #define     F_INT_MAX   10                          // [N]          maximum tollerated force interaction
-#define     K_OR        300                         // [Nm/rad]     rot stiffness
+#define     K_OR        600                         // [Nm/rad]     rot stiffness
 #define     D_OR        2*sqrt(K_OR*1.5)            // [N*s/rad]    rot damping
-#define     K_DEFAULT   100                         // [Nm]         default value translation stiffness
+#define     K_DEFAULT   200                         // [Nm]         default value translation stiffness
 #define     D_DEFAULT   2*sqrt(K_DEFAULT*1.5)       // [N*s/m]      default value translation stiffness
 #define     MASS        1.5                         // [kg]         apparent mass
-#define     DZ_VALUE      6   
 
 typedef Matrix<double, 8, 1> Vector8d;
 typedef Matrix<double, 6, 1> Vector6d;
@@ -40,20 +39,15 @@ using namespace panda_controllers;
 
 //VARIABLES
 
-double k;                  // stiffness value (1 DOF)
-double d;                  // damping value (1 DOF) 
-double K[36];              // stiffness matrix
-double D[36];              // damping matrix
-DQ pos_dq;                 // EE position DQ
-DQ or_dq;                  // EE rotation DQ
-Vector3d position;         // current EE position
-Vector4d orientation;      // current EE orientation
-Vector3d position_d_;      // nominal desired trajectory
-Vector3d position_c_;      // compute compliant trajectory
-int phase;                 // phase of trajectory 
-Vector6d wrench_ext;       // external wrench
-Vector8d pose_d;           // nominal pose
-Vector8d pose_c;           // compliant pose
+double k;                                // stiffness value (1 DOF)
+double d;                                // damping value (1 DOF) 
+double K[36];                            // stiffness matrix
+double D[36];                            // damping matrix
+Vector3d phase;                          // phase of trajectory 
+Vector3d f_rel;                          // external wrench relative
+Vector8d x1_,x2_,xa_,xr_;                //leftEE,rightEE,absolute,relative poses 
+Vector8d pose_a_d_,dpose_a_d_,ddpose_a_d_; //reference abs traj
+Vector8d pose_r_d_,dpose_r_d_,ddpose_r_d_; //reference abs traj
 
 //Initialization of gains
 
@@ -78,62 +72,56 @@ void signal_callback_handler(int signum) {
    exit(signum);
 }
 
-// Callback for robot pose
-void poseCallback(
-    const geometry_msgs::PoseStampedConstPtr& msg) {
-  position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
-  orientation << msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z; //w real part  
+// Callback for robots coop variabòes
+
+void cdts_var_Callback(const panda_controllers::InfoDebugConstPtr& msg){
+    for (int i=0; i<8; i++){
+          x1_(i) = msg->x1[i];
+          x2_(i) = msg->x2[i];
+          xa_(i) = msg->abs_pose[i];
+          xr_(i) = msg->rel_pose[i];
+          }
 }
 
 void CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
-	position_c_ << msg->position_c[0], msg->position_c[1], msg->position_c[2];
-    pose_c << msg->pose_c[0], msg->pose_c[1], msg->pose_c[2],msg->pose_c[3],msg->pose_c[4],msg->pose_c[5],msg->pose_c[6],msg->pose_c[7];		
+			for (int i=0; i<8; i++){
+          		pose_a_d_(i) = msg->pose_abs_c[i];
+          		dpose_a_d_(i) = msg->dpose_abs_c[i];
+          		ddpose_a_d_(i) = msg->ddpose_abs_c[i];
+          		pose_r_d_(i) = msg->pose_rel_c[i];
+		  		dpose_r_d_(i) = msg->dpose_rel_c[i];
+		  		ddpose_r_d_(i) = msg->ddpose_rel_c[i];
+          }
+          for (int i=0; i<3; i++){
+            f_rel(i) = msg->fr_rel_frame[i];
         }
+		}										
 
 void desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
-	position_d_ << msg->position_d[0], msg->position_d[1], msg->position_d[2]; 
-    pose_d << msg->pose_d[0], msg->pose_d[1], msg->pose_d[2],msg->pose_d[3],msg->pose_d[4],msg->pose_d[5],msg->pose_d[6],msg->pose_d[7];
-    phase = msg->phase; 
+    phase << msg->phase_array[0], msg->phase_array[1], msg->phase_array[2]; 
  } 
 
-void f_ext_Callback(const panda_controllers::InfoDebugConstPtr& msg){
-  wrench_ext << msg->wrench_ext[0], msg->wrench_ext[1],msg->wrench_ext[2], msg->wrench_ext[3],msg->wrench_ext[4],msg->wrench_ext[5];
-}
 
 // =================== FUNCTIONS ===================== //
-
-Vector6d dead_zone(Vector6d wrench_ext, double dz_value){
-   Vector6d wrench_n; 
-
-   for (int i = 0; i < 6; i++) {
-    if (abs(wrench_ext[i]) < dz_value) {
-      wrench_n[i] = 0;
-    } else if (wrench_ext[i] <= -dz_value) {
-      wrench_n[i] = wrench_ext[i] + dz_value;
-
-    } else if(wrench_ext[i] >= dz_value){
-      wrench_n[i] = wrench_ext[i] - dz_value;
-    }
-  }
-return wrench_n;
-}
    
 
 // -----Compute impedance gains modulation----- // 
 
-Vector2d compute_gains(double ki,int phase, double f_ext,double pos,double e_pos, double F_max, double F_int_max,ros::Time t_curr,ros::Time time_prec){
+Vector2d compute_gains(double ki,int phase, double f_ext, double F_max, double F_int_max,ros::Time t_curr,ros::Time time_prec){
 
     //Parameters
-    double k_min, k_max, mass, beta, a0, csi,safe_tr,z_int; 
+    double k_min, k_max,k_max_2,k_default,mass, beta, a0, csi,sc; 
     k_max = 500;
+    k_max_2 = 600; 
     k_min = 30;
+    k_default = 200; 
     mass = 1.5; 
     beta = 0.98;
     a0 = 0.95;
     csi = 1; 
-    z_int = 0.17; 
+    sc = 6; //empyrically overdamped scale factor
     
     //variables
     Vector2d gains; 
@@ -143,40 +131,41 @@ Vector2d compute_gains(double ki,int phase, double f_ext,double pos,double e_pos
     double int_pos; 
 
     if(phase==0){
-        d = 8*sqrt(ki*mass); 
-        if(std::abs(f_ext) > F_max){
-            ki = 0.995*ki; // decrease k arbitrarly
-            d = 8*sqrt(ki*mass); 
-            if(ki < k_min){
-                ki = k_min;
-                d = 8*sqrt(ki*mass); 
-                    }
-            if(ki*std::abs(e_pos) > F_int_max){
-                k_temp = (F_int_max)/(std::abs(e_pos));
-                if(k_temp<ki){
-                    ki = k_temp;
-                    d = 8*sqrt(ki*mass); 
-                    if(k_temp < k_min){
-                        ki = k_min;
-                        d = 8*sqrt(ki*mass); 
-                    }
-                }     
-         }
+        ki = k_default;
+        d = 2*sqrt(ki); 
+    }else if(phase==1){ //
+        // d = sc*sqrt(ki*mass); 
+        // if(std::abs(f_ext) > F_max){
+            ki = 0.998*ki; // decrease k arbitrarly
+            d = sc*sqrt(ki*mass); 
+            if(ki < k_default){
+                ki = k_default;
+                d = sc*sqrt(ki*mass); 
+                    // }
         }       
-    }else if(phase==1){
+    }else if(phase==2){ //squeeze
         double k_dot; 
-            if(pos>z_int){ //safe to increase K
                 double interval = (t_curr - time_prec).toSec();
                 k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
                 k_temp = ki + k_dot*interval; 
                 ki = k_temp;  
-                d = 2*sqrt(ki*mass); 
+                d = sc*sqrt(ki*mass); 
                 if(k_temp>k_max){
                     ki = k_max;
-                    d = 2*sqrt(ki*mass); 
+                    d = sc*sqrt(ki*mass); 
                 }
-            }
-        }
+    }else if(phase==3){
+        double k_dot; 
+                double interval = (t_curr - time_prec).toSec();
+                k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
+                k_temp = ki + k_dot*interval; 
+                ki = k_temp;  
+                d = sc*sqrt(ki*mass); 
+                if(k_temp>k_max_2){
+                    ki = k_max_2;
+                    d = sc*sqrt(ki*mass); 
+                }
+    }
         k = ki; 
         gains << k,d; 
     return gains; 
@@ -201,10 +190,8 @@ int main(int argc, char **argv)
                                                 &CompliantTrajCallback);
 
   ros::Subscriber sub_ext_forces =  node_imp.subscribe("/motion_control_dq/info_debug", 1, 
-                                                &f_ext_Callback);
+                                                &cdts_var_Callback);
 
-  ros::Subscriber sub_pose =  node_imp.subscribe("/motion_control_dq/franka_ee_pose", 1, 
-                                                &poseCallback);
 
   ros::Rate loop_rate(200);
 
@@ -216,25 +203,12 @@ int main(int argc, char **argv)
   Vector8d pose_nom;
   double int_pos; 
   pose_nom << 1,0,0,0,0,0,0,0;
-  int ph; 
-  Vector2d gains_x; 
-  Vector2d gains_y;
-  Vector2d gains_z;
+  int sw; // single or dual arm
+  Vector2d gains_x,gains_y,gains_z;
   double kx,ky,kz,dx,dy,dz; 
   double K[36];            // stiffness matrix 6x6
   double D[36];            // damping matrix 6x6 
-  int sw;                  // flag to switch between impedance and admittance
   int count = 0;           // counter
-  Vector3d pos;            // EE position
-  Vector4d rot;            // EE rotation
-  Vector8d pose_d_;        // deired nominal traj
-  Vector8d pose_c_;        // deired computed traj
-  DQ e_dq;                 // DQ pose error
-  DQ pose_dq;              // current pose
-  DQ pose_d_dq;            // desired nominal pose
-  DQ pose_c_dq;            // desired compliant pose
-  Vector3d e_pos;          // position error
-  Vector6d wrench_n;       // external wrench
   ros::Time t_curr;        // current time
   ros::Time time_prec;     // previous cycle time
 
@@ -247,30 +221,15 @@ int main(int argc, char **argv)
   while (ros::ok())
   {
     if(count == 0){
-        cout << "choice: (0:impedance, 1:admittance)" << endl; 
+        cout << "choice: (0:single, 1:dual)" << endl; 
         cin >> sw;
     }
 
     ros::spinOnce();
 
-    pos << position;
-    rot << orientation; 
-
-    pos_dq = DQ(pos);
-    or_dq = DQ(rot); 
-
-    //Dead zone ext forces
-    wrench_n = dead_zone(wrench_ext,DZ_VALUE); 
-
-    //current pose DQ
-    pose_dq = or_dq + 0.5*E_*(pos_dq*or_dq); 
-    pose_dq = pose_dq.normalize();
-
     if(count == 0){
         //initialize
         time_prec = ros::Time::now();
-        pose_d_ << pose_nom; 
-        pose_c_ << pose_nom; 
         kx = set_k_init();
         ky = set_k_init();
         kz = set_k_init();
@@ -278,49 +237,16 @@ int main(int argc, char **argv)
         dy = set_d_init();
         dz = set_d_init();
     }
-        or_dq = DQ(rot); 
-        pos_dq = DQ(pos);
-        pose_dq = or_dq + 0.5*E_*(pos_dq*or_dq); 
-        pose_dq = pose_dq.normalize();
-      
-        if(sw==0){
-            if(pose_d_ != pose_nom){
-                //nominal desired pose DQ
-                pose_d_ << pose_d; 
-                pose_d_dq = DQ(pose_d_);
-                pose_d_dq = pose_d_dq.normalize(); 
-                e_dq = pose_dq.conj()*pose_d_dq; 
-                e_dq = e_dq.normalize(); 
-              }
-            else{
-                e_dq = DQ(pose_nom); 
-            }
-        }else if (sw==1){
 
-            if(pose_c_ != pose_nom){
-                //compliant desired pose DQ
-                pose_c_ << pose_c; 
-                pose_c_dq = DQ(pose_c_);
-                pose_c_dq = pose_c_dq.normalize();
-                e_dq = pose_dq.conj()*pose_c_dq; 
-                e_dq = e_dq.normalize(); 
-            }
-            else{
-                e_dq = DQ(pose_nom); 
-            }
-        }
-  
-        e_pos = vec3(e_dq.translation()); 
         t_curr = ros::Time::now();
-
-        ph = phase; 
+         
+        gains_x = compute_gains(kx,phase(0),f_rel(0),F_MAX,F_INT_MAX,t_curr,time_prec);
+        gains_y = compute_gains(ky,phase(1),f_rel(1),F_MAX,F_INT_MAX,t_curr,time_prec);
+        gains_z = compute_gains(kz,phase(2),f_rel(2),F_MAX,F_INT_MAX,t_curr,time_prec);
         
-        gains_x = compute_gains(kx,ph,wrench_n(0),position(0),e_pos(0),F_MAX,F_INT_MAX,t_curr,time_prec);
-        gains_y = compute_gains(kz,ph,wrench_n(1),position(1),e_pos(1),F_MAX,F_INT_MAX,t_curr,time_prec);
-        gains_z = compute_gains(kz,ph,wrench_n(2),position(2),e_pos(2),F_MAX,F_INT_MAX,t_curr,time_prec);
-
-        kz = gains_z(0);
-        dz = gains_z(1);
+        kx = gains_x(0); dx = gains_x(1); 
+        ky = gains_y(0); dy = gains_y(1); 
+        kz = gains_z(0); dz = gains_z(1);
 
         time_prec = t_curr; 
 
@@ -339,7 +265,7 @@ int main(int argc, char **argv)
         D[28] = dy;
         D[35] = dz;
 
-         // Publish desired impedance
+        // Publish desired impedance
          imp_msg.header.stamp = ros::Time::now();
 
              for ( int i = 0; i <36; i++){
