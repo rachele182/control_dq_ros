@@ -33,11 +33,12 @@ using DQ_robotics::C8;
 using namespace DQ_robotics;
 
 #define 	KP			    120.0   // proportional gain motion controller
-#define 	KD			    20.0    // derivative gain motion controller
-#define 	KP_ABS			100.0    // proportional gain motion controller absolute pose
+#define 	KD			    20.0 
+   // derivative gain motion controller
+#define 	KP_ABS			80.0    // proportional gain motion controller absolute pose
 #define 	KD_ABS			20.0    // derivative gain motion controller absolute pose
 #define 	KO			    4.0  	// gain momentum observer
-#define     KI              50.0    // integrative term 
+#define     KI              0*30.0    // integrative term 
 #define 	D_JOINTS	    2.0    // dissipative term joints
 #define 	COLL_LIMIT		50.0   // 
 #define 	NULL_STIFF		2.0
@@ -434,6 +435,7 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Vector8d dea;                 // absolute vel error   8x1
  	Vector16d e_aug;              // agumented error vector 16x1 [er;ea];
  	Vector16d de_aug;             // agumented error vector derivative 16x1 [der;dea];
+	Vector16d e_aug_i;            // integrative augmented error vector 16x1 [er;ea];
 	Vector16d ddx_des;            // augmented desired acceleration [ddxr_d;ddxa_d]
 	Vector8d pose_rel;       	  // current relative pose 8x1
 	Vector8d dpose_rel;			  // current relative velocity 8x1
@@ -553,14 +555,21 @@ void DualArmControl::update(const ros::Time& /*time*/,
     DQ pose_rel_dq;
     pose_rel_dq = dual_panda.relative_pose(q); 
 	pose_rel = vec8(pose_rel_dq); 
+	std::cout << "pose rel" << pose_rel.transpose() << std::endl; 
 	
 	DQ pose_abs_dq; 
 	pose_abs_dq = dual_panda.absolute_pose(q);
 	pose_abs = vec8(pose_abs_dq); 
+	std::cout << "pose abs" << pose_abs.transpose() << std::endl; 
 
-//  Store absolute and relative positions 
+// === Store absolute and relative variables == //
+	Vector3d n_r, n_a; //rotation axis 
+	double phi_r, phi_a; //rotation angle
+
     pose_rel_dq = pose_rel_dq.normalize(); pose_abs_dq = pose_abs_dq.normalize();
 	pos_rel = vec3(pose_rel_dq.translation()); pos_abs = vec3(pose_abs_dq.translation()); 
+	n_r = vec3(pose_rel_dq.rotation_axis()); n_a = vec3(pose_abs_dq.rotation_axis()); 
+	phi_r = double(pose_rel_dq.rotation_angle()); phi_a = double(pose_abs_dq.rotation_angle()); 
 
 // // ================= GET JACOBIANS ===================== //
 
@@ -601,13 +610,15 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	//Absolute pose error
 	ea << pose_a_d_- pose_abs; 
 	dea << dpose_a_d_ - dpose_abs; 
-
+	
+	//desired accelerations
 	ddx_des.head(8) << ddpose_r_d_; ddx_des.tail(8) << ddpose_a_d_; 
 
+	//augmented error defintion
 	e_aug.head(8) << er; e_aug.tail(8) << ea; 
 	de_aug.head(8) << der; de_aug.tail(8) << dea; 
-    
-	// ==== Store variables for analysis === //
+ 
+ 	// ==== Store variables for analysis === //
 	
 	DQ des_pos_a_dq; Vector3d des_pos_abs;  DQ des_pos_r_dq; Vector3d des_pos_rel; 
 
@@ -619,9 +630,15 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	des_pos_r_dq = (DQ(pose_r_d_)).normalize();
 	des_pos_rel = vec3(des_pos_r_dq.translation()); 
 
-	//position error
+	//position errors
     e_pos_rel = des_pos_rel - pos_rel; 
     e_pos_abs = des_pos_abs - pos_abs; 
+
+	//rotation errors 
+	DQ rot_r_d, rot_r,e_rot_rel_dq; 
+	Vector8d e_rot_rel; 
+	rot_r_d =des_pos_r_dq.rotation(); rot_r = (DQ(pose_rel)).rotation(); 
+	e_rot_rel_dq = DQ(er); 
 
 //  //======================| CONTROL VARIABLES |======================//
     Vector6d wrench_ext_r_hat,wrench_ext_l_hat;  // estimated ext wrench (w. momentum observer)
@@ -636,7 +653,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Matrix <double, 7, 7> N2;				  	 // null projector for left arm
     Matrix <double,16,16 > gain_p;            	 // proportional gain matrix
 	Matrix <double,16,16 > gain_d;    	      	 // derivative gain matrix
-	gain_p.setZero(); gain_d.setZero();
+	Matrix <double,16,16 > gain_i;    	      	 // derivative gain matrix
+	gain_p.setZero(); gain_d.setZero(); gain_i.setZero(); 
 	
 // Set gains
 	gain_p.block(0,0,8,8) << KP*I8; gain_p.block(8,8,8,8) << KP_ABS*I8;
@@ -780,10 +798,15 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.pos_2[i] = pos_r_(i); 
 		info_debug_msg.er[i] = e_pos_rel(i); 
 		info_debug_msg.ea[i] = e_pos_abs(i); 
+		info_debug_msg.n_r[i] = n_r(i); 
+		info_debug_msg.n_a[i] = n_a(i); 
 	}
 
 	info_debug_msg.abs_norm = e_pos_abs.norm();
 	info_debug_msg.rel_norm = e_pos_rel.norm();
+	info_debug_msg.er_rot_norm = e_rot_rel.norm(); 
+	info_debug_msg.phi_r = phi_r; 
+	info_debug_msg.phi_a = phi_a; 
 
 	for(int i=0; i<8;i++){
 		info_debug_msg.rel_pose[i] = pose_rel(i); 
@@ -825,12 +848,12 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
 void DualArmControl::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
 			for (int i=0; i<8; i++){
-          		pose_a_d_(i) = msg->pose_d[i];
-          		dpose_a_d_(i) = msg->dpose_d[i];
-          		ddpose_a_d_(i) = msg->ddpose_d[i];
-          		pose_r_d_(i) = msg->pose_r[i];
-		  		dpose_r_d_(i) = msg->dpose_r[i];
-		  		ddpose_r_d_(i) = msg->ddpose_r[i];
+          		// pose_a_d_(i) = msg->pose_d[i];
+          		// dpose_a_d_(i) = msg->dpose_d[i];
+          		// ddpose_a_d_(i) = msg->ddpose_d[i];
+          		// pose_r_d_(i) = msg->pose_r[i];
+		  		// dpose_r_d_(i) = msg->dpose_r[i];
+		  		// ddpose_r_d_(i) = msg->ddpose_r[i];
           }
  } 
 
@@ -838,12 +861,12 @@ void DualArmControl::desiredProjectTrajectoryCallback(
 void DualArmControl::CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
 			for (int i=0; i<8; i++){
-          		// pose_a_d_(i) = msg->pose_abs_c[i];
-          		// dpose_a_d_(i) = msg->dpose_abs_c[i];
-          		// ddpose_a_d_(i) = msg->ddpose_abs_c[i];
-          		// pose_r_d_(i) = msg->pose_rel_c[i];
-		  		// dpose_r_d_(i) = msg->dpose_rel_c[i];
-		  		// ddpose_r_d_(i) = msg->ddpose_rel_c[i];
+          		pose_a_d_(i) = msg->pose_abs_c[i];
+          		dpose_a_d_(i) = msg->dpose_abs_c[i];
+          		ddpose_a_d_(i) = msg->ddpose_abs_c[i];
+          		pose_r_d_(i) = msg->pose_rel_c[i];
+		  		dpose_r_d_(i) = msg->dpose_rel_c[i];
+		  		ddpose_r_d_(i) = msg->ddpose_rel_c[i];
           }
 		}										
 }  // end namespace panda_controllers

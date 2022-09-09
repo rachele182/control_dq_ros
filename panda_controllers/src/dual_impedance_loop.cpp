@@ -4,14 +4,14 @@
 
 #define     MASS          1.5                          // [kg]         apparent mass
 #define     SC            6                            // empyrically overdamping factor     
-#define     Kr_DEFAULT    200                          // [Nm]         default relative stiffness
+#define     Kr_DEFAULT    600                          // [Nm]         default relative stiffness
 #define     Dr_DEFAULT    SC*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
-#define     Ka_DEFAULT    400                          // [Nm]         default absolutestiffness   
-#define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);     // [Ns/m]       default absolute damping          
+#define     Ka_DEFAULT    600                          // [Nm]         default absolutestiffness   
+#define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);    // [Ns/m]       default absolute damping          
 #define     K_ROT         600               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
-#define     DZ_VALUE_F    2.0                         // dead zone value ext forces (?)       
-#define     DZ_VALUE_M    0.5                         // dead zone value ext torques (?)       
+#define     DZ_VALUE_F    2.0                          // dead zone value ext forces (?)       
+#define     DZ_VALUE_M    0.5                          // dead zone value ext torques (?)       
 
 using namespace DQ_robotics;   using namespace panda_controllers; 
 using DQ_robotics::E_;
@@ -225,7 +225,8 @@ void dual_impedance_loop::update(){
    DQ xr_hat_dq;  //  displacement between nominal and computed relative pose DQ
    DQ pose_r_d_dq, pose_a_d_dq; //Dq nominal trajectories
    DQ x1_dq,x2_dq,xa_dq,xr_dq,rot_r_dq,rot_a_dq; //DQ poses
-   Vector3d pos_abs_c,pos_rel_c; //computed abs and rel positions
+   Vector3d pos_abs_c,pos_rel_c,n_r_c,n_a_c; //computed abs and rel positions and rotation axis
+   double phi_r, phi_a; // computed abs and rel rotation angles
    Vector6d wrench_rel,wrench_abs,f_log_a, f_log_r; //mapped ext wrenches
    
    // DQ nominal desired poses
@@ -237,7 +238,7 @@ void dual_impedance_loop::update(){
   //  BD_r(0,0)= D_ROT;  BD_r(1,1)= D_ROT; BD_r(2,2)= D_ROT;
   //  BD_r(3,3)= Dr_DEFAULT; BD_r(4,4)= Dr_DEFAULT; BD_r(5,5)= Dr_DEFAULT;
 
-   //  == Absolute impedance
+   // == Absolute impedance
    KD_a(0,0)= K_ROT; KD_a(1,1)= K_ROT; KD_a(2,2)= K_ROT;
    KD_a(3,3)= Ka_DEFAULT; KD_a(4,4)= Ka_DEFAULT; KD_a(5,5)= Ka_DEFAULT;
    BD_a(0,0)= D_ROT;  BD_a(1,1)= D_ROT; BD_a(2,2)= D_ROT;
@@ -310,8 +311,9 @@ void dual_impedance_loop::update(){
                     disp.xr_hat,disp.dxr_hat,disp.ddxr_hat,
                     disp.xa_hat,disp.dxa_hat,disp.ddxa_hat);
     
-    pos_abs_c = vec3((DQ(comp.xa_c)).translation()); 
-    pos_rel_c = vec3((DQ(comp.xr_c)).translation()); 
+    pos_abs_c = vec3((DQ(comp.xa_c)).translation());  pos_rel_c = vec3((DQ(comp.xr_c)).translation()); 
+    n_r_c = vec3((DQ(comp.xr_c)).rotation_axis());  n_a_c = vec3((DQ(comp.xa_c)).rotation_axis()); 
+    phi_r = double((DQ(comp.xr_c)).rotation_angle()); phi_a = double((DQ(comp.xa_c)).rotation_angle()); 
 
     //==== DEBUG utils=====///
     DQ x; DQ dx; DQ ddx; 
@@ -356,12 +358,17 @@ void dual_impedance_loop::update(){
          compliant_traj_msg.fa_f[i] = (wrench_ext_n_l_.head(3))(i); 
          compliant_traj_msg.fr_f[i] = (wrench_ext_n_r_.head(3))(i); 
          compliant_traj_msg.fr_rel_frame[i] = (wrench_rel.head(3))(i);
+         compliant_traj_msg.n_r[i] = n_r_c(i);  
+         compliant_traj_msg.n_a[i] = n_a_c(i);  
 
        }
 
        compliant_traj_msg.stiff[0] = KD_r(3,3);
        compliant_traj_msg.stiff[1] = KD_r(4,4);
        compliant_traj_msg.stiff[2] = KD_r(5,5);
+
+       compliant_traj_msg.phi_r = phi_r;
+       compliant_traj_msg.phi_a = phi_a;
 
      if(pose_d_!= pose_nom && pose_r_d_!= pose_nom){
        pub_compliant_traj.publish(compliant_traj_msg);
@@ -407,6 +414,8 @@ void dual_impedance_loop::desiredImpedanceProjectCallback(
 		for (int j=0; j<6; j++){
 			KD_r(i, j) = msg->stiffness_matrix[i*6 + j];
 			BD_r(i, j) = msg->damping_matrix[i*6 + j];
+      // KD_a(i, j) = msg->stiffness_abs_matrix[i*6 + j];
+			// BD_a(i, j) = msg->damping_abs_matrix[i*6 + j];
 		}
 	}
 }

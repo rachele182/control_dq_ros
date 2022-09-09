@@ -28,4 +28,8 @@ float64[3] fr_f #ext force rel filtered
 float64[3] fa #absolute force
 float64[3] fr #relative force
 float64[3] fr_rel_frame #ext force rel (relative frame)
-float64[3] stiff
+float64[3] stiff #translational stiffness
+float64[3] n_r
+float64[3] n_a
+float64 phi_r
+float64 phi_a

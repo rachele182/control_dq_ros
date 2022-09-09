@@ -35,6 +35,9 @@ float64[3] pos_2 # right arm position
 float64[3] er #relative position error
 float64[3] ea #absolute position error
 float64 abs_norm #absolute error norm
-float64 rel_norm
-float64[3] vel_d #relative position error
-float64[3] acc_d #absolute position error
+float64 rel_norm #relative position error norm
+float64 er_rot_norm #relative rotation error norm
+float64[3] n_r # rotation_axis_relative
+float64[3] n_a # rotation_axis_absolute
+float64 phi_r # rotation_angle_relative
+float64 phi_a # rotation_angle_absolute

@@ -22,34 +22,31 @@
 //=====================IMPEDANCE MODULATION ====================//
 
 // DEFINE CONSTANTS
-#define     F_MAX       6                           // [N]          disturbance threshold (from dead-zone computation)
-#define     F_INT_MAX   10                          // [N]          maximum tollerated force interaction
-#define     K_OR        600                         // [Nm/rad]     rot stiffness
-#define     D_OR        2*sqrt(K_OR*1.5)            // [N*s/rad]    rot damping
-#define     K_DEFAULT   200                         // [Nm]         default value translation stiffness
-#define     D_DEFAULT   2*sqrt(K_DEFAULT*1.5)       // [N*s/m]      default value translation stiffness
-#define     MASS        1.5                         // [kg]         apparent mass
+#define     K_OR_DEFAULT 600                         // [Nm/rad]     rot stiffness
+#define     D_OR_DEFAULT 2*sqrt(K_OR_DEFAULT*1.5)    // [N*s/rad]    rot damping
+#define     K_DEFAULT    600                         // [Nm]         default value translation relative stiffness
+#define     D_DEFAULT    2*sqrt(K_DEFAULT*1.5)       // [N*s/m]      default value translation relative damping
+#define     MASS         1.5                         // [kg]         apparent mass
+#define     K_a_DEFAULT  500                         // [Nm]         default absolute translational stiffness     
+ 
+typedef Matrix<double, 8, 1> Vector8d; typedef Matrix<double, 6, 1> Vector6d;
 
-typedef Matrix<double, 8, 1> Vector8d;
-typedef Matrix<double, 6, 1> Vector6d;
-
-using namespace DQ_robotics;
-using namespace std; 
-using namespace panda_controllers; 
+using namespace DQ_robotics; using namespace std;  using namespace panda_controllers; 
 
 //VARIABLES
+double k;                                   // stiffness value (1 DOF)
+double d;                                  // damping value (1 DOF) 
+double K[36];                              // stiffness matrix
+double D[36];                              // damping matrix
+double K_abs[36];                          // stiffness matrix
+double D_abs[36];                          // damping matrix
+Vector3d phase;                            // phase of trajectory 
+Vector3d f_rel;                            // external wrench relative
+Vector8d x1_,x2_,xa_,xr_;                  // leftEE,rightEE,absolute,relative poses 
+Vector8d pose_a_d_,dpose_a_d_,ddpose_a_d_; // reference abs traj
+Vector8d pose_r_d_,dpose_r_d_,ddpose_r_d_; // reference abs traj
 
-double k;                                // stiffness value (1 DOF)
-double d;                                // damping value (1 DOF) 
-double K[36];                            // stiffness matrix
-double D[36];                            // damping matrix
-Vector3d phase;                          // phase of trajectory 
-Vector3d f_rel;                          // external wrench relative
-Vector8d x1_,x2_,xa_,xr_;                //leftEE,rightEE,absolute,relative poses 
-Vector8d pose_a_d_,dpose_a_d_,ddpose_a_d_; //reference abs traj
-Vector8d pose_r_d_,dpose_r_d_,ddpose_r_d_; //reference abs traj
-
-//Initialization of gains
+//Initialization of gains translational impedance 
 
 double set_k_init(){
     double k;  
@@ -106,17 +103,17 @@ void desiredProjectTrajectoryCallback(
 
 // =================== FUNCTIONS ===================== //
    
+// ==-----Compute impedance gains modulation of translational relative stiffness----- == // 
 
-// -----Compute impedance gains modulation----- // 
-
-Vector2d compute_gains(double ki,int phase, double f_ext, double F_max, double F_int_max,ros::Time t_curr,ros::Time time_prec){
+Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec){
 
     //Parameters
-    double k_min, k_max,k_max_2,k_default,mass, beta, a0, csi,sc; 
-    k_max = 500;
-    k_max_2 = 600; 
+    double k_min, k_max,k_max_2,k_rid,k_default,mass, beta, a0, csi,sc; 
+    k_max = 1100;
+    k_max_2 = 1200; 
     k_min = 30;
-    k_default = 200; 
+    k_default = K_DEFAULT; 
+    k_rid = 500; 
     mass = 1.5; 
     beta = 0.98;
     a0 = 0.95;
@@ -128,22 +125,18 @@ Vector2d compute_gains(double ki,int phase, double f_ext, double F_max, double F
     double k;
     double d; 
     double k_temp; 
-    double int_pos; 
 
     if(phase==0){
         ki = k_default;
         d = 2*sqrt(ki); 
-    }else if(phase==1){ //
-        // d = sc*sqrt(ki*mass); 
-        // if(std::abs(f_ext) > F_max){
-            ki = 0.998*ki; // decrease k arbitrarly
+    }else if(phase==1){ // approach pahse
+            ki = 0.999*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
-            if(ki < k_default){
-                ki = k_default;
-                d = sc*sqrt(ki*mass); 
-                    // }
+            if(ki < k_rid){
+                ki = k_rid;
+                d = sc*sqrt(ki*mass);
         }       
-    }else if(phase==2){ //squeeze
+    }else if(phase==2){ //squeeze phase
         double k_dot; 
                 double interval = (t_curr - time_prec).toSec();
                 k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
@@ -154,7 +147,7 @@ Vector2d compute_gains(double ki,int phase, double f_ext, double F_max, double F
                     ki = k_max;
                     d = sc*sqrt(ki*mass); 
                 }
-    }else if(phase==3){
+    }else if(phase==3){ //compensate weight
         double k_dot; 
                 double interval = (t_curr - time_prec).toSec();
                 k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
@@ -165,10 +158,133 @@ Vector2d compute_gains(double ki,int phase, double f_ext, double F_max, double F
                     ki = k_max_2;
                     d = sc*sqrt(ki*mass); 
                 }
+    }else if(phase==4){ //release and eq phase
+        ki = 0.999*ki; // decrease k arbitrarly
+        d = 2*sqrt(ki*mass); 
+            if(ki < k_default){
+              ki = k_default;
+              d = sc*sqrt(ki*mass);
+        }       
     }
         k = ki; 
         gains << k,d; 
     return gains; 
+    }
+
+
+// ==-----Compute impedance gains modulation of rotational relative stiffness----- == // 
+
+
+Vector2d compute_gains_rot(double ki,int phase,ros::Time t_curr,ros::Time time_prec){
+
+    //Parameters
+    double k_default,k_rid,mass, beta, a0, csi,sc; 
+    k_default = K_OR_DEFAULT; 
+    k_rid = 50; 
+    mass = 1.5; 
+    beta = 0.98;
+    a0 = 0.95;
+    csi = 1; 
+    sc = 2; //critically damped
+
+    //variables
+    Vector2d gains_rot; 
+    double k; double d; double k_temp; 
+
+    if(phase==0){ //approach phase 
+        ki = k_default;
+        d = 2*sqrt(ki); 
+    }else if(phase ==1){
+        ki = ki;
+        d = 2*sqrt(ki);        
+    }else if(phase==2){ // squeeze
+            ki = 0.998*ki; // decrease k arbitrarly
+            d = sc*sqrt(ki*mass); 
+            if(ki < k_rid){
+                ki = k_rid;
+                d = sc*sqrt(ki*mass);
+            }       
+    }else if(phase==3){ //compensate weight
+        ki = ki;
+        d = 2*sqrt(ki); 
+    }else if(phase==4){ //release phase
+        double k_dot; 
+        double interval = (t_curr - time_prec).toSec();
+        k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
+        k_temp = ki + k_dot*interval; 
+        ki = k_temp;  
+        d = 2*sqrt(ki*mass); 
+        if(k_temp>k_default){
+            ki = k_default;
+            d = 2*sqrt(ki*mass); 
+        }
+    }
+        k = ki; 
+        gains_rot << k,d; 
+    return gains_rot; 
+    }
+
+// ==-----Compute impedance gains modulation of translational relative stiffness----- == // 
+
+Vector2d compute_abs_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec){
+
+    //Parameters
+    double k_min, k_max,k_max_2,k_rid,k_default,mass, beta, a0, sc,csi; 
+    k_max = 600;
+    k_default = K_a_DEFAULT; 
+    k_rid = 300; 
+    mass = 1.5; 
+    beta = 0.98;
+    a0 = 0.95;
+    csi = 1; 
+    sc = 6; //empyrically overdamped scale factor
+    //variables
+    Vector2d gains_abs; 
+    double k,d, k_temp; 
+
+    if(phase==0){
+        ki = k_default;
+        d = 2*sqrt(ki); 
+    }else if(phase==1){ // approach pahse
+            ki = 0.999*ki; // decrease k arbitrarly
+            d = sc*sqrt(ki*mass); 
+            if(ki < k_rid){
+                ki = k_rid;
+                d = sc*sqrt(ki*mass);
+        }       
+    }else if(phase==2){ //squeeze phase
+        double k_dot; 
+                double interval = (t_curr - time_prec).toSec();
+                k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
+                k_temp = ki + k_dot*interval; 
+                ki = k_temp;  
+                d = 2*sqrt(ki*mass); 
+                if(k_temp>k_max){
+                    ki = k_max;
+                    d = 2*sqrt(ki*mass); 
+                }
+    }else if(phase==3){ //compensate weight
+        double k_dot; 
+                double interval = (t_curr - time_prec).toSec();
+                k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
+                k_temp = ki + k_dot*interval; 
+                ki = k_temp;  
+                d = 2*sqrt(ki*mass); 
+                if(k_temp>k_max){
+                    ki = k_max;
+                    d = 2*sqrt(ki*mass); 
+                }
+    }else if(phase==4){ //release and eq phase
+        ki = 0.999*ki; // decrease k arbitrarly
+        d = sc*sqrt(ki*mass); 
+            if(ki < k_default){
+              ki = k_default;
+              d = sc*sqrt(ki*mass);
+        }       
+    }
+        k = ki; 
+        gains_abs << k,d; 
+    return gains_abs; 
     }
 
 
@@ -204,10 +320,15 @@ int main(int argc, char **argv)
   double int_pos; 
   pose_nom << 1,0,0,0,0,0,0,0;
   int sw; // single or dual arm
-  Vector2d gains_x,gains_y,gains_z;
+  Vector2d gains_x,gains_y,gains_z; Vector2d gains_rot_x,gains_rot_y,gains_rot_z;
+  Vector2d gains_abs_x,gains_abs_y,gains_abs_z; 
   double kx,ky,kz,dx,dy,dz; 
+  double kx_rot,ky_rot,kz_rot,dx_rot,dy_rot,dz_rot; //translational and rotational relative impedance
+  double kx_a,ky_a,kz_a,dx_a,dy_a,dz_a; //absolute impedance
   double K[36];            // stiffness matrix 6x6
   double D[36];            // damping matrix 6x6 
+  double K_abs[36];        // absolute stiffness matrix
+  double D_abs[36];        // absolute damping matrix
   int count = 0;           // counter
   ros::Time t_curr;        // current time
   ros::Time time_prec;     // previous cycle time
@@ -216,6 +337,8 @@ int main(int argc, char **argv)
   for (int i = 0; i < 36; i++) {
         K[i] = 0;
         D[i] = 0; 
+        K_abs[i] = 0;
+        D_abs[i] = 0;
     }
  
   while (ros::ok())
@@ -230,40 +353,51 @@ int main(int argc, char **argv)
     if(count == 0){
         //initialize
         time_prec = ros::Time::now();
-        kx = set_k_init();
-        ky = set_k_init();
-        kz = set_k_init();
-        dx = set_d_init();
-        dy = set_d_init();
-        dz = set_d_init();
+        kx = set_k_init(); ky = set_k_init(); kz = set_k_init();  kx_rot = K_OR_DEFAULT; ky_rot = K_OR_DEFAULT; kz_rot = K_OR_DEFAULT; 
+        dx = set_d_init(); dy = set_d_init(); dz = set_d_init();  dx_rot = D_OR_DEFAULT; dy_rot = D_OR_DEFAULT; dz_rot = D_OR_DEFAULT; 
+        kx_a = K_a_DEFAULT; ky_a = K_a_DEFAULT; kz_a = K_a_DEFAULT; 
     }
-
         t_curr = ros::Time::now();
-         
-        gains_x = compute_gains(kx,phase(0),f_rel(0),F_MAX,F_INT_MAX,t_curr,time_prec);
-        gains_y = compute_gains(ky,phase(1),f_rel(1),F_MAX,F_INT_MAX,t_curr,time_prec);
-        gains_z = compute_gains(kz,phase(2),f_rel(2),F_MAX,F_INT_MAX,t_curr,time_prec);
         
-        kx = gains_x(0); dx = gains_x(1); 
-        ky = gains_y(0); dy = gains_y(1); 
-        kz = gains_z(0); dz = gains_z(1);
+        //translational gains compuation
+        gains_x = compute_gains(kx,phase(2),t_curr,time_prec);
+        gains_y = compute_gains(ky,phase(2),t_curr,time_prec);
+        gains_z = compute_gains(kz,phase(2),t_curr,time_prec);
+        //rot gains computation (//reduce on all rot axis?)
+        gains_rot_x = compute_gains_rot(kx_rot,phase(0),t_curr,time_prec); 
+        gains_rot_y = compute_gains_rot(ky_rot,phase(1),t_curr,time_prec); 
+        gains_rot_z = compute_gains_rot(kz_rot,phase(2),t_curr,time_prec); 
+        // translational abs gains computation
+        gains_abs_x = compute_abs_gains(kx_a,phase(0),t_curr,time_prec);
+        gains_abs_y = compute_abs_gains(ky_a,phase(1),t_curr,time_prec);
+        gains_abs_z = compute_abs_gains(kz_a,phase(2),t_curr,time_prec); 
+
+        //Translational relative imp
+        kx = gains_x(0);  ky = gains_y(0); kz = gains_z(0); 
+        dx = gains_x(1);  dy = gains_y(1); dz = gains_z(1);
+
+        //Rotational rel imp
+        kx_rot = gains_rot_x(0); ky_rot = gains_rot_y(0); kz_rot = gains_rot_z(0);
+        dx_rot = gains_rot_x(1); dy_rot = gains_rot_y(1); dz_rot = gains_rot_z(1);
+
+        //Translational abs imp
+        kx_a = gains_abs_x(0); ky_a = gains_abs_y(0); kz_a = gains_abs_z(0); 
+        dx_a = gains_abs_x(1); dy_a = gains_abs_y(1); dz_a = gains_abs_z(1);
 
         time_prec = t_curr; 
 
         // Final impedance matrices
-        K[0] = K_OR;
-        K[7] = K_OR;
-        K[14] = K_OR;
-        K[21] = kx;
-        K[28] = ky;
-        K[35] = kz;
+        K[0] = kx_rot; K[7] = ky_rot; K[14] = kz_rot;
+        K[21] = kx; K[28] = ky; K[35] = kz;
 
-        D[0] = D_OR;
-        D[7] = D_OR;
-        D[14] = D_OR;
-        D[21] = dx;
-        D[28] = dy;
-        D[35] = dz;
+        D[0] = dx_rot; D[7] = dy_rot; D[14] = dz_rot;
+        D[21] = dx; D[28] = dy; D[35] = dz;
+
+        K_abs[0] = K_OR_DEFAULT; K_abs[7] = K_OR_DEFAULT; K_abs[14] = K_OR_DEFAULT;
+        K_abs[21] = kx_a; K_abs[28] = ky_a; K_abs[35] = kz_a;
+
+        D_abs[0] = D_OR_DEFAULT; D[7] = D_OR_DEFAULT; D[14] = D_OR_DEFAULT;
+        D_abs[21] = dx_a; D_abs[28] = dy_a; D_abs[35] = dz_a;
 
         // Publish desired impedance
          imp_msg.header.stamp = ros::Time::now();
@@ -271,6 +405,8 @@ int main(int argc, char **argv)
              for ( int i = 0; i <36; i++){
              imp_msg.stiffness_matrix[i] = K[i];
              imp_msg.damping_matrix[i] = D[i];
+             imp_msg.stiffness_abs_matrix[i] = K_abs[i];
+             imp_msg.damping_abs_matrix[i] = D_abs[i]; 
              }
 
          pub_impedance.publish(imp_msg);
