@@ -32,10 +32,9 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    120.0   // proportional gain motion controller
-#define 	KD			    20.0 
-   // derivative gain motion controller
-#define 	KP_ABS			80.0    // proportional gain motion controller absolute pose
+#define 	KP			    170.0   // proportional gain motion controller
+#define 	KD			    30.0    // derivative gain motion controller
+#define 	KP_ABS			120.0    // proportional gain motion controller absolute pose
 #define 	KD_ABS			20.0    // derivative gain motion controller absolute pose
 #define 	KO			    4.0  	// gain momentum observer
 #define     KI              0*30.0    // integrative term 
@@ -75,16 +74,6 @@ DQ_SerialManipulator DualArmControl::init_dq_robot(Vector3d r_B_O,Vector4d B_Q_O
 DQ_CooperativeDualTaskSpace DualArmControl::init_dual_panda(DQ_Kinematics* robot1, DQ_Kinematics* robot2){
 	DQ_CooperativeDualTaskSpace dual_arm(robot1,robot2); 
     return dual_arm;
-}
-
-double DualArmControl::scale(double tf){
-	double delta = 2; 
-	double alpha; 
-	alpha = 1 - delta*(tf); 
-	if(alpha <=0){
-		alpha = 0.0;
-	}
-return alpha; 
 }
 
 //================Init single arms ==============//
@@ -510,12 +499,14 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	std::array<double, 7>  gravity_array_right = arms_data_.at(right_arm_id_).model_handle_->getGravity(); 
 	std::array<double, 42> jacobian_array_right = arms_data_.at(right_arm_id_).model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
+	std::array<double, 7>  coriolis_array_right = arms_data_.at(right_arm_id_).model_handle_->getCoriolis(); 
     std::array<double, 7>  gravity_array_left = arms_data_.at(left_arm_id_).model_handle_->getGravity(); 
 	std::array<double, 42> jacobian_array_left = arms_data_.at(left_arm_id_).model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
 	// Eigen conversion
     Map<Matrix<double, 7, 1> > g1(gravity_array_left.data());                  // gravity vector from franka 
 	Map<Matrix<double, 7, 1> > g2(gravity_array_right.data());
+	Map<Matrix<double, 7, 1> > c2(coriolis_array_right.data());
 	Map<Matrix<double, 6, 7> > Jg_l(jacobian_array_left.data());
 	Map<Matrix<double, 6, 7> > Jg_r(jacobian_array_right.data());
 
@@ -554,22 +545,20 @@ void DualArmControl::update(const ros::Time& /*time*/,
 // 	Get current CDTS variables
     DQ pose_rel_dq;
     pose_rel_dq = dual_panda.relative_pose(q); 
-	pose_rel = vec8(pose_rel_dq); 
-	std::cout << "pose rel" << pose_rel.transpose() << std::endl; 
+	pose_rel = vec8(pose_rel_dq);
 	
 	DQ pose_abs_dq; 
 	pose_abs_dq = dual_panda.absolute_pose(q);
 	pose_abs = vec8(pose_abs_dq); 
-	std::cout << "pose abs" << pose_abs.transpose() << std::endl; 
 
 // === Store absolute and relative variables == //
-	Vector3d n_r, n_a; //rotation axis 
-	double phi_r, phi_a; //rotation angle
+	Vector4d rot_r, rot_a; //rotation 
 
     pose_rel_dq = pose_rel_dq.normalize(); pose_abs_dq = pose_abs_dq.normalize();
 	pos_rel = vec3(pose_rel_dq.translation()); pos_abs = vec3(pose_abs_dq.translation()); 
-	n_r = vec3(pose_rel_dq.rotation_axis()); n_a = vec3(pose_abs_dq.rotation_axis()); 
-	phi_r = double(pose_rel_dq.rotation_angle()); phi_a = double(pose_abs_dq.rotation_angle()); 
+	rot_r = vec4(pose_rel_dq.rotation()); rot_a = vec4(pose_abs_dq.rotation()); 
+	// std::cout << "rot_r" << rot_r.transpose() << std::endl; 
+	// std::cout << "rot_a" << rot_a.transpose() << std::endl; 
 
 // // ================= GET JACOBIANS ===================== //
 
@@ -634,11 +623,13 @@ void DualArmControl::update(const ros::Time& /*time*/,
     e_pos_rel = des_pos_rel - pos_rel; 
     e_pos_abs = des_pos_abs - pos_abs; 
 
+	// std::cout << "pos_rel" << pos_rel.transpose() << std::endl; 
+	// std::cout << "pos_abs" << pos_abs.transpose() << std::endl;
+
 	//rotation errors 
-	DQ rot_r_d, rot_r,e_rot_rel_dq; 
+	DQ rot_r_d,e_rot_rel_dq; 
 	Vector8d e_rot_rel; 
-	rot_r_d =des_pos_r_dq.rotation(); rot_r = (DQ(pose_rel)).rotation(); 
-	e_rot_rel_dq = DQ(er); 
+	rot_r_d = des_pos_r_dq.rotation(); 
 
 //  //======================| CONTROL VARIABLES |======================//
     Vector6d wrench_ext_r_hat,wrench_ext_l_hat;  // estimated ext wrench (w. momentum observer)
@@ -798,15 +789,16 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.pos_2[i] = pos_r_(i); 
 		info_debug_msg.er[i] = e_pos_rel(i); 
 		info_debug_msg.ea[i] = e_pos_abs(i); 
-		info_debug_msg.n_r[i] = n_r(i); 
-		info_debug_msg.n_a[i] = n_a(i); 
+	}
+
+
+	for(int i=0; i<4;i++){
+		info_debug_msg.rot_r[i] = rot_r(i); 
+		info_debug_msg.rot_a[i] = rot_a(i); 
 	}
 
 	info_debug_msg.abs_norm = e_pos_abs.norm();
 	info_debug_msg.rel_norm = e_pos_rel.norm();
-	info_debug_msg.er_rot_norm = e_rot_rel.norm(); 
-	info_debug_msg.phi_r = phi_r; 
-	info_debug_msg.phi_a = phi_a; 
 
 	for(int i=0; i<8;i++){
 		info_debug_msg.rel_pose[i] = pose_rel(i); 
@@ -814,6 +806,9 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.x1[i] = x1(i);
 		info_debug_msg.x2[i] = x2(i); 
 	}
+
+	// std::cout << "pose_abs" << pose_abs.transpose() << std::endl; 
+    // std::cout << "pose_rel" << pose_rel.transpose() << std::endl; 
 
     pub_info_debug.publish(info_debug_msg);
 	
@@ -848,12 +843,12 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
 void DualArmControl::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
 			for (int i=0; i<8; i++){
-          		// pose_a_d_(i) = msg->pose_d[i];
-          		// dpose_a_d_(i) = msg->dpose_d[i];
-          		// ddpose_a_d_(i) = msg->ddpose_d[i];
-          		// pose_r_d_(i) = msg->pose_r[i];
-		  		// dpose_r_d_(i) = msg->dpose_r[i];
-		  		// ddpose_r_d_(i) = msg->ddpose_r[i];
+          		pose_a_d_(i) = msg->pose_d[i];
+          		dpose_a_d_(i) = msg->dpose_d[i];
+          		ddpose_a_d_(i) = msg->ddpose_d[i];
+          		pose_r_d_(i) = msg->pose_r[i];
+		  		dpose_r_d_(i) = msg->dpose_r[i];
+		  		ddpose_r_d_(i) = msg->ddpose_r[i];
           }
  } 
 
@@ -861,12 +856,12 @@ void DualArmControl::desiredProjectTrajectoryCallback(
 void DualArmControl::CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
 			for (int i=0; i<8; i++){
-          		pose_a_d_(i) = msg->pose_abs_c[i];
-          		dpose_a_d_(i) = msg->dpose_abs_c[i];
-          		ddpose_a_d_(i) = msg->ddpose_abs_c[i];
-          		pose_r_d_(i) = msg->pose_rel_c[i];
-		  		dpose_r_d_(i) = msg->dpose_rel_c[i];
-		  		ddpose_r_d_(i) = msg->ddpose_rel_c[i];
+          		// pose_a_d_(i) = msg->pose_abs_c[i];
+          		// dpose_a_d_(i) = msg->dpose_abs_c[i];
+          		// ddpose_a_d_(i) = msg->ddpose_abs_c[i];
+          		// pose_r_d_(i) = msg->pose_rel_c[i];
+		  		// dpose_r_d_(i) = msg->dpose_rel_c[i];
+		  		// ddpose_r_d_(i) = msg->ddpose_rel_c[i];
           }
 		}										
 }  // end namespace panda_controllers

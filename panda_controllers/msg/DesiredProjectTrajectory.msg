@@ -20,3 +20,5 @@ float64[3] vel_r
 float64[3] acc_r
 float64[3] vel_a
 float64[3] acc_a
+float64[4] rot_r
+float64[4] rot_a

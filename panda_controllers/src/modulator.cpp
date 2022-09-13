@@ -109,11 +109,13 @@ Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec)
 
     //Parameters
     double k_min, k_max,k_max_2,k_rid,k_default,mass, beta, a0, csi,sc; 
-    k_max = 1100;
-    k_max_2 = 1200; 
+    k_max = 2700;
+    k_max_2 = 3000; 
+    // k_max = 800;
+    // k_max_2 = 900; 
     k_min = 30;
     k_default = K_DEFAULT; 
-    k_rid = 500; 
+    k_rid = 200; 
     mass = 1.5; 
     beta = 0.98;
     a0 = 0.95;
@@ -130,7 +132,7 @@ Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec)
         ki = k_default;
         d = 2*sqrt(ki); 
     }else if(phase==1){ // approach pahse
-            ki = 0.999*ki; // decrease k arbitrarly
+            ki = 0.995*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
             if(ki < k_rid){
                 ki = k_rid;
@@ -159,7 +161,7 @@ Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec)
                     d = sc*sqrt(ki*mass); 
                 }
     }else if(phase==4){ //release and eq phase
-        ki = 0.999*ki; // decrease k arbitrarly
+        ki = 0.995*ki; // decrease k arbitrarly
         d = 2*sqrt(ki*mass); 
             if(ki < k_default){
               ki = k_default;
@@ -180,7 +182,7 @@ Vector2d compute_gains_rot(double ki,int phase,ros::Time t_curr,ros::Time time_p
     //Parameters
     double k_default,k_rid,mass, beta, a0, csi,sc; 
     k_default = K_OR_DEFAULT; 
-    k_rid = 50; 
+    k_rid = 20; 
     mass = 1.5; 
     beta = 0.98;
     a0 = 0.95;
@@ -198,16 +200,13 @@ Vector2d compute_gains_rot(double ki,int phase,ros::Time t_curr,ros::Time time_p
         ki = ki;
         d = 2*sqrt(ki);        
     }else if(phase==2){ // squeeze
-            ki = 0.998*ki; // decrease k arbitrarly
+            ki = 0.995*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
             if(ki < k_rid){
                 ki = k_rid;
                 d = sc*sqrt(ki*mass);
             }       
-    }else if(phase==3){ //compensate weight
-        ki = ki;
-        d = 2*sqrt(ki); 
-    }else if(phase==4){ //release phase
+    }else if(phase==3){ //compensate weight (reincrease rotational stiffness)
         double k_dot; 
         double interval = (t_curr - time_prec).toSec();
         k_dot = beta*(4*a0*sqrt(ki/mass)*pow(ki,3/2))/(sqrt(ki) + 2*a0*csi*sqrt(ki));
@@ -217,7 +216,10 @@ Vector2d compute_gains_rot(double ki,int phase,ros::Time t_curr,ros::Time time_p
         if(k_temp>k_default){
             ki = k_default;
             d = 2*sqrt(ki*mass); 
-        }
+        } 
+    }else if(phase==4){ //release phase
+        ki = ki;
+        d = 2*sqrt(ki*mass); 
     }
         k = ki; 
         gains_rot << k,d; 
@@ -364,8 +366,8 @@ int main(int argc, char **argv)
         gains_y = compute_gains(ky,phase(2),t_curr,time_prec);
         gains_z = compute_gains(kz,phase(2),t_curr,time_prec);
         //rot gains computation (//reduce on all rot axis?)
-        gains_rot_x = compute_gains_rot(kx_rot,phase(0),t_curr,time_prec); 
-        gains_rot_y = compute_gains_rot(ky_rot,phase(1),t_curr,time_prec); 
+        gains_rot_x = compute_gains_rot(kx_rot,phase(2),t_curr,time_prec); 
+        gains_rot_y = compute_gains_rot(ky_rot,phase(2),t_curr,time_prec); 
         gains_rot_z = compute_gains_rot(kz_rot,phase(2),t_curr,time_prec); 
         // translational abs gains computation
         gains_abs_x = compute_abs_gains(kx_a,phase(0),t_curr,time_prec);

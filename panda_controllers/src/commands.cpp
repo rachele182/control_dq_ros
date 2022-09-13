@@ -46,6 +46,7 @@ struct traj_dq_struct{
 
 ////// =====================DUAL ARM=======================//
 DQ rot_1, rot_2; 
+DQ rot_1_n, rot_2_n; //new references for orientation
 Vector8d pose_abs,pose_rel,pose_1,pose_2;  
 Vector8d x1_des,dx1_des,ddx1_des,x2_des,dx2_des,ddx2_des;
 Vector8d xa_des,dxa_des; 
@@ -361,10 +362,13 @@ Vector3d demo_coop (Vector3d pos_in_1, Vector3d pos_in_2, Vector3d pos_in_a, dou
   Vector3d pos_1_f, pos_2_f, pos_a_f; 
   double z_offset; double y_offset; double x_offset; 
   double pc1, pc2;
-  pc1 = 0.93;
-  pc2 = 0.56; 
-  // pc1 = pos_in_1(1) - 0.1;
-  // pc2 = pos_in_2(1) + 0.1; 
+  Vector3d pos1_cont; Vector3d pos2_cont;
+  // pc1 = 0.913 - 0.01;
+  // pc2 = 0.513 + 0.01; 
+  pc1 = 1.003 - 0.02;
+  pc2 = 0.503 + 0.02; 
+  pos1_cont << 0.49, 0.974 - 0.01, 0.243; 
+  pos2_cont << 0.464, 0.574 + 0.01, 0.243; 
   x_offset = 0*0.05; 
   z_offset = 0.15; //m 
   y_offset = 0.22; 
@@ -380,74 +384,65 @@ Vector3d demo_coop (Vector3d pos_in_1, Vector3d pos_in_2, Vector3d pos_in_a, dou
     t = time;
     phase.setZero(); 
   }else if (time>=2 && time<7){ //approach phase
-    tmp1 << pos_in_1(0) + x_offset, pos_in_1(1), pos_in_1(2); 
-    tmp2 << pos_in_2(0) + x_offset, pos_in_2(1), pos_in_2(2); 
+    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2); 
+    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2); 
     tmpa << pos_in_a; 
-    // pos_1_f << pos_in_1(0), pos_in_1(1)- y_offset, pos_in_1(2); 
-    // pos_2_f << pos_in_2(0), pos_in_2(1)+ y_offset, pos_in_2(2);
-    pos_1_f << pos_in_1(0), pc1, pos_in_1(2); 
-    pos_2_f << pos_in_2(0), pc2, pos_in_2(2);
+    pos_1_f << pos1_cont; 
+    pos_2_f << pos2_cont;
     pos_a_f << tmpa;  
     t_f = 5;
     t = time - 2; 
-  }else if (time>=7 && time<10){ //pause
-    // tmp1 << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2);
-    // tmp2 << pos_in_2(0), pos_in_2(1)+ y_offset, pos_in_2(2);
-    tmp1 << pos_in_1(0)+x_offset,pc1, pos_in_1(2);
-    tmp2 << pos_in_2(0)+x_offset,pc2, pos_in_2(2);
+    phase(2) = 1;
+  }else if (time>=7 && time<12){ //pause
+    tmp1 << pos1_cont;
+    tmp2 << pos2_cont;
     tmpa << pos_in_a; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     pos_a_f << tmpa;  
-    t_f = 3;
+    t_f = 5;
     t = time - 7; 
     phase(2) = 2; 
-  }else if (time>=10 && time<15){ //go up
-    // tmp1 << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2);
-    // tmp2 << pos_in_2(0), pos_in_2(1)+ y_offset, pos_in_2(2);
-    tmp1 << pos_in_1(0)+x_offset, pc1, pos_in_1(2);
-    tmp2 << pos_in_2(0)+x_offset, pc2, pos_in_2(2);
+  }else if (time>=12 && time<17){ //go up
+    tmp1 << pos1_cont;
+    tmp2 << pos2_cont;
     tmpa << pos_in_a; 
     pos_a_f << tmpa(0), tmpa(1), tmpa(2) + z_offset; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     t_f = 5;
-    t = time - 10; 
-    phase(2) = 3; 
-  }else if (time>=15 && time<20){ //go down
-    // tmp1 << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2);
-    // tmp2 << pos_in_2(0), pos_in_2(1)+ y_offset, pos_in_2(2);
-    tmp1 << pos_in_1(0)+x_offset, pc1, pos_in_1(2);
-    tmp2 << pos_in_2(0)+x_offset, pc2, pos_in_2(2);
+    t = time - 12; 
+    phase(2) = 2; 
+  }else if (time>=17 && time<22){ //go down
+    tmp1 << pos1_cont;
+    tmp2 << pos2_cont;
     tmpa << pos_in_a(0), pos_in_a(1),pos_in_a(2) + z_offset; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     pos_a_f << pos_in_a(0), pos_in_a(1),pos_in_a(2); 
     t_f = 5;
-    t = time - 15; 
+    t = time - 17; 
     phase(2) = 3; 
-  }else if (time>=20 && time<24){ //release
-    // tmp1 << pos_in_1(0), pos_in_1(1)-y_offset, pos_in_1(2);
-    // tmp2 << pos_in_2(0), pos_in_2(1)+ y_offset, pos_in_2(2);
-    tmp1 << pos_in_1(0)+x_offset, pc1, pos_in_1(2);
-    tmp2 << pos_in_2(0)+x_offset, pc2, pos_in_2(2);
+  }else if (time>=22 && time<27){ //release
+    tmp1 << pos1_cont;
+    tmp2 << pos2_cont;
     tmpa << pos_in_a(0), pos_in_a(1),pos_in_a(2); 
-    pos_1_f <<  pos_in_1(0)+x_offset, pos_in_1(1), pos_in_1(2); 
-    pos_2_f << pos_in_2(0)+x_offset, pos_in_2(1), pos_in_2(2);
+    pos_1_f <<  pos_in_1(0), pos_in_1(1), pos_in_1(2); 
+    pos_2_f << pos_in_2(0), pos_in_2(1), pos_in_2(2);
     pos_a_f << tmpa; 
-    t_f = 4; 
-    t = time - 20; 
-    phase(2) = 1; 
+    t_f = 5; 
+    t = time - 22; 
+    phase(2) = 4; 
   }else { // eq phase
-    tmp1 << pos_in_1(0)+x_offset, pos_in_1(1), pos_in_1(2); 
-    tmp2 << pos_in_2(0)+x_offset, pos_in_2(1), pos_in_2(2); 
+    tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2); 
+    tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2); 
     tmpa << pos_in_a(0), pos_in_a(1),pos_in_a(2); 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     pos_a_f << tmpa; 
     t_f = 1000; 
-    t = time - 24; 
-    phase(2) = 1; 
+    t = time - 27; 
+    phase(2) = 4; 
   }
    //des traj for left arm
    traj_dual.p1_des << tmp1 + (tmp1 - pos_1_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
@@ -570,35 +565,45 @@ return phase;
 
   void gen_each_arm_traj_dq ( Vector3d pos1_des, Vector3d vel1_des,
                        Vector3d acc1_des, DQ or1_dq , Vector3d pos2_des, Vector3d vel2_des,
-                       Vector3d acc2_des, DQ or2_dq
+                       Vector3d acc2_des, DQ or2_dq, Vector3d phase, DQ or_1_n, DQ or_2_n
                               ){  
+        
+        DQ or_1_dq_, or_2_dq_; 
         //poses
+        if(phase(2)==2){
+          or_1_dq_ = or_1_n;
+          or_2_dq_ = or_2_n; 
+        }else{
+          or_1_dq_ = or1_dq;
+          or_2_dq_ = or2_dq; 
+        }
+
         p1_d = DQ(pos1_des);       
-        x1_des_dq = or1_dq + 0.5*E_*(p1_d*or1_dq); 
+        x1_des_dq = or_1_dq_ + 0.5*E_*(p1_d*or_1_dq_); 
         x1_des_dq = x1_des_dq * x1_des_dq.inv().norm();
         traj_dual_dq.x1_des << vec8(x1_des_dq); 
 
         p2_d = DQ(pos2_des);       
-        x2_des_dq = or2_dq + 0.5*E_*(p2_d*or2_dq); 
+        x2_des_dq = or_2_dq_ + 0.5*E_*(p2_d*or_2_dq_); 
         x2_des_dq = x2_des_dq * x2_des_dq.inv().norm();
         traj_dual_dq.x2_des << vec8(x2_des_dq);
 
         //velocities
         v1_d = DQ(vel1_des);
-        dx1_des_dq = 0.5*E_*(v1_d*or1_dq); 
+        dx1_des_dq = 0.5*E_*(v1_d*or_1_dq_); 
         traj_dual_dq.dx1_des << vec8(dx1_des_dq); 
 
         v2_d = DQ(vel2_des);
-        dx2_des_dq = 0.5*E_*(v2_d*or2_dq); 
+        dx2_des_dq = 0.5*E_*(v2_d*or_2_dq_); 
         traj_dual_dq.dx2_des << vec8(dx2_des_dq); 
 
         //accelerations
         a1_d = DQ(acc1_des);
-        ddx1_des_dq = 0.5*E_*(a1_d*or1_dq); 
+        ddx1_des_dq = 0.5*E_*(a1_d*or_1_dq_); 
         traj_dual_dq.ddx1_des << vec8(ddx1_des_dq); 
 
         a2_d = DQ(acc2_des);
-        ddx2_des_dq = 0.5*E_*(a2_d*or2_dq); 
+        ddx2_des_dq = 0.5*E_*(a2_d*or_2_dq_); 
         traj_dual_dq.ddx2_des << vec8(ddx2_des_dq); 
 
   }
@@ -829,34 +834,36 @@ int main(int argc, char **argv)
           gen_traj_dq(pos_des,vel_des,acc_des,or_dq);
 
         }else if (choice == 5){
-          rot_1 = DQ(or_1); rot_2 = DQ(or_2); 
-          dual_traj(pos_in_1,pos_in_2,t); // compute EE traj for each arm
-          pos_1_des << traj_dual.p1_des; vel_1_des << traj_dual.v1_des; acc_1_des << traj_dual.a1_des;
-          pos_2_des << traj_dual.p2_des; vel_2_des << traj_dual.v2_des; acc_2_des << traj_dual.a2_des;
+          // rot_1 = DQ(or_1); rot_2 = DQ(or_2); 
+          // dual_traj(pos_in_1,pos_in_2,t); // compute EE traj for each arm
+          // pos_1_des << traj_dual.p1_des; vel_1_des << traj_dual.v1_des; acc_1_des << traj_dual.a1_des;
+          // pos_2_des << traj_dual.p2_des; vel_2_des << traj_dual.v2_des; acc_2_des << traj_dual.a2_des;
 
-          gen_each_arm_traj_dq(pos_1_des,vel_1_des,acc_1_des,rot_1,
-                                pos_2_des,vel_2_des,acc_2_des,rot_2); //computes DQ traj for each arm
+          // gen_each_arm_traj_dq(pos_1_des,vel_1_des,acc_1_des,rot_1,
+          //                       pos_2_des,vel_2_des,acc_2_des,rot_2); //computes DQ traj for each arm
         
-          x1_des << traj_dual_dq.x1_des;  dx1_des << traj_dual_dq.dx1_des; ddx1_des << traj_dual_dq.ddx1_des;
-          x2_des << traj_dual_dq.x2_des;  dx1_des << traj_dual_dq.dx2_des; ddx2_des << traj_dual_dq.ddx2_des;  
-          //update to compute derivative
-          if(count==0){
-            xa_des << pose_abs_in; 
-            dxa_des << 0,0,0,0,0,0,0,0; 
-          }else{
-            xa_des << traj_dual_dq.xa_des;
-            dxa_des << traj_dual_dq.dxa_des; 
-          }
-          gen_dual_traj_dq(x1_des,dx1_des,ddx1_des,
-                            x2_des,dx2_des,ddx2_des,xa_des,dxa_des,
-                                   Ts,count); //computes des abs and relative trajs
+          // x1_des << traj_dual_dq.x1_des;  dx1_des << traj_dual_dq.dx1_des; ddx1_des << traj_dual_dq.ddx1_des;
+          // x2_des << traj_dual_dq.x2_des;  dx1_des << traj_dual_dq.dx2_des; ddx2_des << traj_dual_dq.ddx2_des;  
+          // //update to compute derivative
+          // if(count==0){
+          //   xa_des << pose_abs_in; 
+          //   dxa_des << 0,0,0,0,0,0,0,0; 
+          // }else{
+          //   xa_des << traj_dual_dq.xa_des;
+          //   dxa_des << traj_dual_dq.dxa_des; 
+          // }
+          // gen_dual_traj_dq(x1_des,dx1_des,ddx1_des,
+          //                   x2_des,dx2_des,ddx2_des,xa_des,dxa_des,
+          //                          Ts,count); //computes des abs and relative trajs
         }else if (choice == 6){
           rot_1 = DQ(or_1); rot_2 = DQ(or_2); 
+          // rot_1_n = pose_1_dq.rotation(); rot_2_n = pose_2_dq.rotation(); 
+          rot_1_n =  DQ(or_1); rot_2_n =  DQ(or_2);; 
           phase = demo_coop(pos_in_1,pos_in_2,pos_a_in,t); // compute EE traj for each arm
           pos_1_des << traj_dual.p1_des; vel_1_des << traj_dual.v1_des; acc_1_des << traj_dual.a1_des;
           pos_2_des << traj_dual.p2_des; vel_2_des << traj_dual.v2_des; acc_2_des << traj_dual.a2_des;
           gen_each_arm_traj_dq(pos_1_des,vel_1_des,acc_1_des,rot_1,
-                                pos_2_des,vel_2_des,acc_2_des,rot_2); //computes DQ traj for each arm
+                                pos_2_des,vel_2_des,acc_2_des,rot_2,phase,rot_1_n,rot_2_n); //computes DQ traj for each arm
         
           x1_des << traj_dual_dq.x1_des;  dx1_des << traj_dual_dq.dx1_des; ddx1_des << traj_dual_dq.ddx1_des;
           x2_des << traj_dual_dq.x2_des;  dx1_des << traj_dual_dq.dx2_des; ddx2_des << traj_dual_dq.ddx2_des;  
@@ -870,7 +877,7 @@ int main(int argc, char **argv)
           pos_1_des << traj_dual.p1_des; vel_1_des << traj_dual.v1_des; acc_1_des << traj_dual.a1_des;
           pos_2_des << traj_dual.p2_des; vel_2_des << traj_dual.v2_des; acc_2_des << traj_dual.a2_des;
           gen_each_arm_traj_dq(pos_1_des,vel_1_des,acc_1_des,rot_1,
-                                pos_2_des,vel_2_des,acc_2_des,rot_2); //computes DQ traj for each arm
+                                pos_2_des,vel_2_des,acc_2_des,rot_2,phase,rot_1_n,rot_2_n); //computes DQ traj for each arm
           x1_des << traj_dual_dq.x1_des;  dx1_des << traj_dual_dq.dx1_des; ddx1_des << traj_dual_dq.ddx1_des;
           x2_des << traj_dual_dq.x2_des;  dx1_des << traj_dual_dq.dx2_des; ddx2_des << traj_dual_dq.ddx2_des;  
           //compute cdts trajectories
@@ -935,31 +942,31 @@ int main(int argc, char **argv)
            traj_msg.position_d[2] = pos_check(2);
 
         }else if(choice==5){
-          traj_msg.header.stamp = ros::Time::now();
+          // traj_msg.header.stamp = ros::Time::now();
 
-          DQ xa_dq,xr_dq,x1_dq,x2_dq;
-          Vector3d pa,pr,p1,p2; 
-          xa_dq = DQ(traj_dual_dq.xa_des); xa_dq = xa_dq.normalize(); 
-          xr_dq = DQ(traj_dual_dq.xr_des); xr_dq = xr_dq.normalize(); 
-          x1_dq = DQ(traj_dual_dq.x1_des); x1_dq = x1_dq.normalize(); 
-          x2_dq = DQ(traj_dual_dq.x2_des); x2_dq = x2_dq.normalize(); 
-          pa = vec3(xa_dq.translation()); pr = vec3(xr_dq.translation()); 
-          p1 = vec3(x1_dq.translation()); p2 = vec3(x2_dq.translation());
+          // DQ xa_dq,xr_dq,x1_dq,x2_dq;
+          // Vector3d pa,pr,p1,p2; 
+          // xa_dq = DQ(traj_dual_dq.xa_des); xa_dq = xa_dq.normalize(); 
+          // xr_dq = DQ(traj_dual_dq.xr_des); xr_dq = xr_dq.normalize(); 
+          // x1_dq = DQ(traj_dual_dq.x1_des); x1_dq = x1_dq.normalize(); 
+          // x2_dq = DQ(traj_dual_dq.x2_des); x2_dq = x2_dq.normalize(); 
+          // pa = vec3(xa_dq.translation()); pr = vec3(xr_dq.translation()); 
+          // p1 = vec3(x1_dq.translation()); p2 = vec3(x2_dq.translation());
 
-          for (int i=0; i<8; i++){
-              traj_msg.pose_d[i] = traj_dual_dq.xa_des(i);
-              traj_msg.dpose_d[i] = traj_dual_dq.dxa_des(i);
-              traj_msg.ddpose_d[i] = traj_dual_dq.ddxa_des(i);
-              traj_msg.pose_r[i] = traj_dual_dq.xr_des(i);
-              traj_msg.dpose_r[i] = traj_dual_dq.dxr_des(i);
-              traj_msg.ddpose_r[i] = traj_dual_dq.ddxr_des(i);
-          }
-          for (int i=0; i<3; i++){
-                traj_msg.position_r[i] = pr(i);
-                traj_msg.position_d[i] = pa(i);
-                traj_msg.position_1[i] = p1(i);
-                traj_msg.position_2[i] = p2(i);
-              }  
+          // for (int i=0; i<8; i++){
+          //     traj_msg.pose_d[i] = traj_dual_dq.xa_des(i);
+          //     traj_msg.dpose_d[i] = traj_dual_dq.dxa_des(i);
+          //     traj_msg.ddpose_d[i] = traj_dual_dq.ddxa_des(i);
+          //     traj_msg.pose_r[i] = traj_dual_dq.xr_des(i);
+          //     traj_msg.dpose_r[i] = traj_dual_dq.dxr_des(i);
+          //     traj_msg.ddpose_r[i] = traj_dual_dq.ddxr_des(i);
+          // }
+          // for (int i=0; i<3; i++){
+          //       traj_msg.position_r[i] = pr(i);
+          //       traj_msg.position_d[i] = pa(i);
+          //       traj_msg.position_1[i] = p1(i);
+          //       traj_msg.position_2[i] = p2(i);
+              //}  
         }else if(choice==6){
           traj_msg.header.stamp = ros::Time::now();
 

@@ -238,13 +238,14 @@ void MotionControlDq::starting(const ros::Time& /*time*/) {
     Xb_r << 0.013194,0,0,1.0236,0.016767,-0.019676,-0.033091,1.0461,-0.00095987,-3.1813,-0.027374,0.011822,0.0013866,-0.0088441,0.10316,0.70899,0.016316,0.57733,0.13877,0.018732,0.008907,0.65852,-0.48559,1.7908,0.0082117,0.0085054,-0.0094675,-0.0032702,0.024545,-0.011372,0.074909,0.005767,0.0014424,-0.00010052,-0.00097505,0.026613,0.18937,-0.083343,-0.0056562,0.0039173,0.0023967,0.0012023,-0.0010778,0.0011972,-0.0015276,-0.022549,-0.028092,0.033738,-0.01046,0.018754,-0.0067986,-0.025118,0.27519,0.27734,0.21488,0.21712,0.26261,0.17809,0.33907;
     Dynamics dyn(M_PI, 0, Xb_r); 
 	mass_in = dyn.get_M(q_in); g_in = dyn.get_tau_G(q_in); 
-	p0 = mass_in*dq_in; 
+	
 
 	//====LEFT_ARM
 	// VectorXd Xb_l(59);
 	// Xb_l << 0.002084,0,0,1.0173,-0.0042701,-0.013951,-0.027933,1.0293,0.044034,-3.1291,-0.01598,-0.0025827,-0.011287,-0.017216,0.10307,0.66468,0.028323,0.56777,0.1371,0.029611,0.015026,0.63635,-0.49639,1.7809,0.018033,0.014545,-0.0050086,0.0018855,0.029855,-0.0086085,0.07923,-0.010402,-0.0017637,0.00010625,-0.0040539,0.021507,0.16397,-0.070696,0.0011735,0.0020802,0.0020867,0.0014081,-0.0051387,0.0042805,-0.001217,-0.048654,-0.090942,0.0044737,-0.075902,0.033227,0.012306,0.043793,0.3814,0.21931,0.25969,0.47304,0.23618,0.26877,0.24234;
 	// Dynamics dyn(M_PI, 0, Xb_l); 
 	// mass_in = dyn.get_M(q_in); g_in = dyn.get_tau_G(q_in); 
+	p0 = mass_in*dq_in; 
 
 	// bias torque sensor
 	initial_tau_ext = initial_tau_measured - g_in;
@@ -292,9 +293,14 @@ DQ_SerialManipulator robot = init_dq_robot();
 	franka::RobotState robot_state = state_handle_->getRobotState();        // robot state
 	std::array<double, 7>  gravity_array = model_handle_->getGravity(); 
 	std::array<double, 42> jacobian_array = model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
+	std::array<double, 7>  coriolis_array = model_handle_->getCoriolis();
+	std::array<double, 49> mass_array = model_handle_->getMass();
+
 
 	// Eigen conversion
 	Map<Matrix<double, 7, 1> > gravity(gravity_array.data());                // gravity forces  [Nm]
+	Map<Matrix<double, 7, 1> > coriolis(coriolis_array.data());              // coriolis [Nm]
+	Map<Matrix<double, 7, 7> > mass(mass_array.data());                		 // mass  [Nm]
 	Map<Matrix<double, 6, 7> > Jg(jacobian_array.data());                    // [Nm]
 	Map<Matrix<double, 7, 1> > q(robot_state.q.data());                      // joint positions  [rad]
 	Map<Matrix<double, 7, 1> > dq(robot_state.dq.data());                    // joint velocities [rad/s]
@@ -305,6 +311,12 @@ DQ_SerialManipulator robot = init_dq_robot();
 	Vector3d position(transform.translation());                         	 // ee-base position [m]
 	Quaterniond orientation(transform.linear());                       		 // ee-base orientation
 	Jg_t = Jg.transpose(); 
+
+	// publish mass and jacobian
+	robot_state_msg.header.stamp = ros::Time::now();
+	std::copy(mass_array.begin(), mass_array.end(), robot_state_msg.mass_matrix.begin());
+	pub_robot_state_.publish(robot_state_msg);
+
 
 	// get current state
 	rot_check << orientation.w(),orientation.x(),orientation.y(),orientation.z();
@@ -383,10 +395,10 @@ DQ_SerialManipulator robot = init_dq_robot();
 
 	//---------------- CONTROL COMPUTATION -----------------//
 
-	tau_task << c_mario*dq + m_mario*y  +  g_mario - gravity; 	
-	std::cout << "g_mario" << g_mario << std::endl; 
-	std::cout << "gravity" << gravity << std::endl;
+	// tau_task << c_mario*dq + m_mario*y  +  g_mario - gravity;
+	tau_task << coriolis + mass*y;  
 
+	
 	//---------------- NULLSPACE CONTROL COMPUTATION -----------------//
     
     N =  I7 -  pinv(Jp)*Jp; // null-space projector

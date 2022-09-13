@@ -10,7 +10,7 @@
 #define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);    // [Ns/m]       default absolute damping          
 #define     K_ROT         600               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
-#define     DZ_VALUE_F    2.0                          // dead zone value ext forces (?)       
+#define     DZ_VALUE_F    1.5                          // dead zone value ext forces (?)       
 #define     DZ_VALUE_M    0.5                          // dead zone value ext torques (?)       
 
 using namespace DQ_robotics;   using namespace panda_controllers; 

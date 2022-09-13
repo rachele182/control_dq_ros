@@ -110,13 +110,13 @@ include_directories(
    include
  )
  
-# add_executable(commands
-#   src/commands.cpp
-# )
-
-add_executable(commands_dual
-   src/commands_dual.cpp
+add_executable(commands
+  src/commands.cpp
 )
+
+# add_executable(commands_dual
+#    src/commands_dual.cpp
+# )
 
 add_executable(modulator
   src/modulator.cpp
@@ -138,17 +138,17 @@ add_executable(dual_impedance_loop
   src/dual_impedance_loop.cpp
 ) 
 
-# target_link_libraries(commands PUBLIC
-#   ${Franka_LIBRARIES}
-#   ${catkin_LIBRARIES}
-#   dqrobotics
-# )
-
-target_link_libraries(commands_dual PUBLIC
+target_link_libraries(commands PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
   dqrobotics
 )
+
+# target_link_libraries(commands_dual PUBLIC
+#   ${Franka_LIBRARIES}
+#   ${catkin_LIBRARIES}
+#   dqrobotics
+# )
 
 target_link_libraries(modulator PUBLIC
   ${Franka_LIBRARIES}
