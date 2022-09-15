@@ -32,14 +32,14 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    170.0   // proportional gain motion controller
-#define 	KD			    30.0    // derivative gain motion controller
+#define 	KP			    170.0    // proportional gain motion controller (relative)
+#define 	KD			    30.0     // derivative gain motion controller
 #define 	KP_ABS			120.0    // proportional gain motion controller absolute pose
-#define 	KD_ABS			20.0    // derivative gain motion controller absolute pose
-#define 	KO			    4.0  	// gain momentum observer
-#define     KI              0*30.0    // integrative term 
-#define 	D_JOINTS	    2.0    // dissipative term joints
-#define 	COLL_LIMIT		50.0   // 
+#define 	KD_ABS			20.0     // derivative gain motion controller absolute pose
+#define 	KO			    4.0  	 // gain momentum observer
+#define     KI              0*30.0   // integrative term 
+#define 	D_JOINTS	    2.0      // dissipative term joints
+#define 	COLL_LIMIT		100.0     // 
 #define 	NULL_STIFF		2.0
 #define 	JOINT_STIFF		{3000, 3000, 3000, 3000, 3000, 2000, 100}
 #define     RHO             M_PI
@@ -307,10 +307,10 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 	//////////////////////////////////////
 
 	//Load Panda robot (left arm)
-	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0);
+	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0.05);
 
 	// Load Panda robot (right arm)
-	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0);
+	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0.05);
 
 	// Cooperative dual arm system
 	DQ_CooperativeDualTaskSpace dual_panda = init_dual_panda(&panda_left, &panda_right);
@@ -375,7 +375,6 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 	// pr_dot_hat = initial_tau_measured_r + (c_in_r.transpose())*dq_r_in - g_in_r;  
 	pr_dot_hat.setZero(); 
 	pr_int_hat.setZero(); 
-		
 	r_l.setZero();
 	// pl_dot_hat = initial_tau_measured_l + (c_in_l.transpose())*dq_l_in - g_in_l;
 	pl_dot_hat.setZero(); 
@@ -623,9 +622,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
     e_pos_rel = des_pos_rel - pos_rel; 
     e_pos_abs = des_pos_abs - pos_abs; 
 
-	// std::cout << "pos_rel" << pos_rel.transpose() << std::endl; 
-	// std::cout << "pos_abs" << pos_abs.transpose() << std::endl;
-
 	//rotation errors 
 	DQ rot_r_d,e_rot_rel_dq; 
 	Vector8d e_rot_rel; 
@@ -723,12 +719,9 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	p_l = m1_mario*dq_l;  
 	p_r = m2_mario*dq_r;
 	
-
 	tau_measured_l = tau_measured_l - initial_tau_ext_l;
-	
 	tau_measured_r = tau_measured_r - initial_tau_ext_r; 
 
-	
 	if(count==0){
 		r_l.setZero();
 		r_r.setZero(); 
@@ -791,6 +784,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.ea[i] = e_pos_abs(i); 
 	}
 
+	// std::cout << "p1" << pos_l_.transpose() << std::endl; 
+	// std::cout << "p2" << pos_r_.transpose() << std::endl; 
 
 	for(int i=0; i<4;i++){
 		info_debug_msg.rot_r[i] = rot_r(i); 
@@ -799,6 +794,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 	info_debug_msg.abs_norm = e_pos_abs.norm();
 	info_debug_msg.rel_norm = e_pos_rel.norm();
+	// info_debug_msg.abs_norm = er.norm();
+	// info_debug_msg.rel_norm = ea.norm();
 
 	for(int i=0; i<8;i++){
 		info_debug_msg.rel_pose[i] = pose_rel(i); 
@@ -807,19 +804,15 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.x2[i] = x2(i); 
 	}
 
-	// std::cout << "pose_abs" << pose_abs.transpose() << std::endl; 
-    // std::cout << "pose_rel" << pose_rel.transpose() << std::endl; 
-
     pub_info_debug.publish(info_debug_msg);
 	
 	count = count+1;
 	t = (ros::Time::now() - t_init).toSec();
-
 	
 }
-// // //---------------------------------------------------------------//
-// // //                    	TORQUE SATURATION                    	 //
-// // //---------------------------------------------------------------//
+       //---------------------------------------------------------------//
+       //                    	TORQUE SATURATION                      //
+       //---------------------------------------------------------------//
 Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
     const FrankaDataContainer& arm_data,
     const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
@@ -834,7 +827,6 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
 }
 
 
- 
 // // // //                          CALLBACKS		                     //
 // // // //---------------------------------------------------------------//
 

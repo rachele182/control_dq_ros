@@ -31,5 +31,7 @@ float64[3] fr_rel_frame #ext force rel (relative frame)
 float64[3] stiff #translational stiffness
 float64[3] n_r
 float64[3] n_a
+float64[4] rot_r
+float64[4] rot_a
 float64 phi_r
 float64 phi_a

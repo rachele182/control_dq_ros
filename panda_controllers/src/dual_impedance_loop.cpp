@@ -10,7 +10,7 @@
 #define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);    // [Ns/m]       default absolute damping          
 #define     K_ROT         600               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
-#define     DZ_VALUE_F    1.5                          // dead zone value ext forces (?)       
+#define     DZ_VALUE_F    2.0                          // dead zone value ext forces (?)       
 #define     DZ_VALUE_M    0.5                          // dead zone value ext torques (?)       
 
 using namespace DQ_robotics;   using namespace panda_controllers; 
@@ -87,10 +87,10 @@ void dual_impedance_loop::wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ 
     Mr = 0.5*(wr2_1.tail(3)- wr1_1.tail(3)); // rel torque
     wa.head(3) << fa; 
     wa.tail(3) << Ma; 
-    // wa.tail(3).setZero();
+    wa.tail(3).setZero();
     wr.head(3) << fr;  
     wr.tail(3) << Mr;
-    // wr.tail(3).setZero();
+    wr.tail(3).setZero();
     coop_wrench.wa = wa; coop_wrench.wr = wr; 
 }
    
@@ -311,7 +311,10 @@ void dual_impedance_loop::update(){
                     disp.xr_hat,disp.dxr_hat,disp.ddxr_hat,
                     disp.xa_hat,disp.dxa_hat,disp.ddxa_hat);
     
+    //STORE FOR DATA ANALYSIS
+    Vector4d rot_a_c, rot_r_c; 
     pos_abs_c = vec3((DQ(comp.xa_c)).translation());  pos_rel_c = vec3((DQ(comp.xr_c)).translation()); 
+    rot_a_c = vec4((DQ(comp.xa_c)).rotation()); rot_r_c = vec4((DQ(comp.xr_c)).rotation()); 
     n_r_c = vec3((DQ(comp.xr_c)).rotation_axis());  n_a_c = vec3((DQ(comp.xa_c)).rotation_axis()); 
     phi_r = double((DQ(comp.xr_c)).rotation_angle()); phi_a = double((DQ(comp.xa_c)).rotation_angle()); 
 
@@ -361,6 +364,11 @@ void dual_impedance_loop::update(){
          compliant_traj_msg.n_r[i] = n_r_c(i);  
          compliant_traj_msg.n_a[i] = n_a_c(i);  
 
+       }
+
+       for (int i=0; i<4; i++){
+         compliant_traj_msg.rot_r[i] = rot_r_c(i); 
+         compliant_traj_msg.rot_a[i] = rot_a_c(i);
        }
 
        compliant_traj_msg.stiff[0] = KD_r(3,3);

@@ -363,12 +363,11 @@ Vector3d demo_coop (Vector3d pos_in_1, Vector3d pos_in_2, Vector3d pos_in_a, dou
   double z_offset; double y_offset; double x_offset; 
   double pc1, pc2;
   Vector3d pos1_cont; Vector3d pos2_cont;
-  // pc1 = 0.913 - 0.01;
-  // pc2 = 0.513 + 0.01; 
-  pc1 = 1.003 - 0.02;
-  pc2 = 0.503 + 0.02; 
-  pos1_cont << 0.49, 0.974 - 0.01, 0.243; 
-  pos2_cont << 0.464, 0.574 + 0.01, 0.243; 
+  y_offset = 0.02; 
+  pc1 = 1.003;
+  pc2 = 0.503; 
+  pos1_cont << 0.39864, 0.987016-y_offset, 0.231; 
+  pos2_cont << 0.41971, 0.58765+y_offset,  0.231; 
   x_offset = 0*0.05; 
   z_offset = 0.15; //m 
   y_offset = 0.22; 
@@ -468,60 +467,61 @@ Vector3d demo_contact (Vector3d pos_in_1, Vector3d pos_in_2, Vector3d pos_in_a, 
   double t_f, t;  
   Vector3d pos_1_f, pos_2_f, pos_a_f; 
   double z_offset; double y_offset; double x_offset; 
-  double pc1, pc2;
-  pc1 = 0.93;
-  pc2 = 0.56; 
-  x_offset = 0*0.05; 
+  Vector3d pos1_cont,pos2_cont;
+  y_offset = 0*0.03; 
+  pos1_cont << 0.46785, 1-y_offset, 0.2494; 
+  pos2_cont << 0.47107, 0.6+y_offset, 0.2494; 
 
-  if(time>=0 && time<2){ //initial pause
+  if(time>=0 && time<5){ //initial pause
     tmp1 << pos_in_1; 
     tmp2 << pos_in_2;
     tmpa << pos_in_a; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2; 
     pos_a_f << tmpa;  
-    t_f = 2; 
+    t_f = 5; 
     t = time;
     phase.setZero(); 
-  }else if (time>=2 && time<7){ //come closer
+  }else if (time>=5 && time<10){ //come closer
     tmp1 << pos_in_1(0), pos_in_1(1), pos_in_1(2); 
     tmp2 << pos_in_2(0), pos_in_2(1), pos_in_2(2); 
     tmpa << pos_in_a; 
-    pos_1_f << pos_in_1(0)+x_offset, pc1, pos_in_1(2); 
-    pos_2_f << pos_in_2(0)+x_offset, pc2, pos_in_2(2);
+    pos_1_f << pos1_cont; 
+    pos_2_f << pos2_cont;
     pos_a_f << tmpa;  
     t_f = 5;
-    t = time - 2; 
-  }else if (time>=7 && time<10){ //pause
-    tmp1 << pos_in_1(0)+ x_offset, pc1, pos_in_1(2);
-    tmp2 << pos_in_2(0)+ x_offset, pc2, pos_in_2(2);
+    t = time - 5; 
+    phase(2) = 1; 
+  }else if (time>=10 && time<15){ //pause
+    tmp1 << pos1_cont;
+    tmp2 << pos2_cont;
     tmpa << pos_in_a; 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     pos_a_f << tmpa;  
-    t_f = 3;
-    t = time - 7; 
-    phase(2) = 2; 
-  }else if (time>=10 && time<13){ //release
-    tmp1 << pos_in_1(0)+ x_offset, pc1, pos_in_1(2);
-    tmp2 << pos_in_2(0)+ x_offset, pc2, pos_in_2(2);
-    tmpa << pos_in_a(0), pos_in_a(1),pos_in_a(2); 
-    pos_1_f << pos_in_1(0)+ x_offset, pos_in_1(1), pos_in_1(2); 
-    pos_2_f << pos_in_2(0)+ x_offset, pos_in_2(1), pos_in_2(2);
-    pos_a_f << tmpa; 
-    t_f = 3; 
+    t_f = 5;
     t = time - 10; 
-    phase(2) = 1; 
+    phase(2) = 2; 
+  }else if (time>=15 && time<20){ //release
+    tmp1 << pos1_cont;
+    tmp2 << pos2_cont;
+    tmpa << pos_in_a(0), pos_in_a(1),pos_in_a(2); 
+    pos_1_f << pos_in_1(0), pos_in_1(1), pos_in_1(2); 
+    pos_2_f << pos_in_2(0), pos_in_2(1), pos_in_2(2);
+    pos_a_f << tmpa; 
+    t_f = 5; 
+    t = time - 15; 
+    phase(2) = 3; 
   }else { // eq phase
-    tmp1 << pos_in_1(0)+ x_offset,pos_in_1(1), pos_in_1(2); 
-    tmp2 << pos_in_2(0)+ x_offset,pos_in_2(1), pos_in_2(2); 
+    tmp1 << pos_in_1(0),pos_in_1(1), pos_in_1(2); 
+    tmp2 << pos_in_2(0),pos_in_2(1), pos_in_2(2); 
     tmpa << pos_in_a(0), pos_in_a(1),pos_in_a(2); 
     pos_1_f << tmp1; 
     pos_2_f << tmp2;
     pos_a_f << tmpa; 
     t_f = 1000; 
-    t = time - 13; 
-    phase(2) = 1; 
+    t = time - 20; 
+    phase(2) = 3; 
   }
 
    //des traj for left arm
@@ -570,12 +570,12 @@ return phase;
         
         DQ or_1_dq_, or_2_dq_; 
         //poses
-        if(phase(2)==2){
+        if(phase(2)==0 || phase(2)==1){
+          or_1_dq_ = or1_dq;
+          or_2_dq_ = or2_dq;  
+        }else{
           or_1_dq_ = or_1_n;
           or_2_dq_ = or_2_n; 
-        }else{
-          or_1_dq_ = or1_dq;
-          or_2_dq_ = or2_dq; 
         }
 
         p1_d = DQ(pos1_des);       
@@ -746,7 +746,7 @@ int main(int argc, char **argv)
       cout<< "dual_arm_control? (0:no 1:yes)"<<endl; 
       cin >> dual; 
     }else if(choice == 7){
-      tf = 25;
+      tf = 30;
       cout<< "dual_arm_control? (0:no 1:yes)"<<endl; 
       cin >> dual; 
     }
@@ -858,7 +858,7 @@ int main(int argc, char **argv)
         }else if (choice == 6){
           rot_1 = DQ(or_1); rot_2 = DQ(or_2); 
           // rot_1_n = pose_1_dq.rotation(); rot_2_n = pose_2_dq.rotation(); 
-          rot_1_n =  DQ(or_1); rot_2_n =  DQ(or_2);; 
+          rot_1_n =  DQ(or_1); rot_2_n =  DQ(or_2); 
           phase = demo_coop(pos_in_1,pos_in_2,pos_a_in,t); // compute EE traj for each arm
           pos_1_des << traj_dual.p1_des; vel_1_des << traj_dual.v1_des; acc_1_des << traj_dual.a1_des;
           pos_2_des << traj_dual.p2_des; vel_2_des << traj_dual.v2_des; acc_2_des << traj_dual.a2_des;
@@ -873,6 +873,7 @@ int main(int argc, char **argv)
                           traj_dual.pa_des,traj_dual.va_des,traj_dual.a_des, DQ(or_a)); 
         }else if (choice == 7){
           rot_1 = DQ(or_1); rot_2 = DQ(or_2); 
+          rot_1_n =  DQ(or_1); rot_2_n =  DQ(or_2); 
           phase = demo_contact(pos_in_1,pos_in_2,pos_a_in,t); // compute EE traj for each arm
           pos_1_des << traj_dual.p1_des; vel_1_des << traj_dual.v1_des; acc_1_des << traj_dual.a1_des;
           pos_2_des << traj_dual.p2_des; vel_2_des << traj_dual.v2_des; acc_2_des << traj_dual.a2_des;
