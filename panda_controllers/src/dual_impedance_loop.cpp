@@ -239,10 +239,10 @@ void dual_impedance_loop::update(){
   //  BD_r(3,3)= Dr_DEFAULT; BD_r(4,4)= Dr_DEFAULT; BD_r(5,5)= Dr_DEFAULT;
 
    // == Absolute impedance
-   KD_a(0,0)= K_ROT; KD_a(1,1)= K_ROT; KD_a(2,2)= K_ROT;
-   KD_a(3,3)= Ka_DEFAULT; KD_a(4,4)= Ka_DEFAULT; KD_a(5,5)= Ka_DEFAULT;
-   BD_a(0,0)= D_ROT;  BD_a(1,1)= D_ROT; BD_a(2,2)= D_ROT;
-   BD_a(3,3)= Da_DEFAULT; BD_a(4,4)= Da_DEFAULT; BD_a(5,5)= Da_DEFAULT;
+  //  KD_a(0,0)= K_ROT; KD_a(1,1)= K_ROT; KD_a(2,2)= K_ROT;
+  //  KD_a(3,3)= Ka_DEFAULT; KD_a(4,4)= Ka_DEFAULT; KD_a(5,5)= Ka_DEFAULT;
+  //  BD_a(0,0)= D_ROT;  BD_a(1,1)= D_ROT; BD_a(2,2)= D_ROT;
+  //  BD_a(3,3)= Da_DEFAULT; BD_a(4,4)= Da_DEFAULT; BD_a(5,5)= Da_DEFAULT;
    MD =I6*MASS;
    
   //Current poses
@@ -422,8 +422,8 @@ void dual_impedance_loop::desiredImpedanceProjectCallback(
 		for (int j=0; j<6; j++){
 			KD_r(i, j) = msg->stiffness_matrix[i*6 + j];
 			BD_r(i, j) = msg->damping_matrix[i*6 + j];
-      // KD_a(i, j) = msg->stiffness_abs_matrix[i*6 + j];
-			// BD_a(i, j) = msg->damping_abs_matrix[i*6 + j];
+      KD_a(i, j) = msg->stiffness_abs_matrix[i*6 + j];
+			BD_a(i, j) = msg->damping_abs_matrix[i*6 + j];
 		}
 	}
 }

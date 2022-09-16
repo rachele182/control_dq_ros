@@ -307,10 +307,10 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 	//////////////////////////////////////
 
 	//Load Panda robot (left arm)
-	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0.05);
+	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0);
 
 	// Load Panda robot (right arm)
-	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0.05);
+	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0);
 
 	// Cooperative dual arm system
 	DQ_CooperativeDualTaskSpace dual_panda = init_dual_panda(&panda_left, &panda_right);
@@ -487,9 +487,10 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 // //================================ GET DYNAMICS MODEL ================  //
 
-	Matrix<double, 14, 14> Ma; //stacked mass matrix
-	Matrix<double, 14, 14> Ca; //stacked coriolis matrix
-	Matrix<double, 14, 1> ga;      //stacked gravity vector from model
+	Matrix<double, 14, 14> Ma; 					//stacked mass matrix
+	Matrix<double, 14, 14> Ca; 					//stacked coriolis matrix
+	Matrix<double, 14, 1> ga;      				//stacked gravity vector from model
+	Matrix<double, 14, 1> ca;      				//stacked coriolis vector from model
 	Matrix<double, 14, 1> fa; 					 //stacked friction vector from model
 	Matrix<double, 14, 1> ga_mario; 			 // stacked gravity vector from mario model
 	Matrix <double, 6,7> Jr_inv;				 // dynamically consistenst pseudo-inverse of J^T
@@ -497,15 +498,21 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Ma.setZero(); Ca.setZero(); 
 
 	std::array<double, 7>  gravity_array_right = arms_data_.at(right_arm_id_).model_handle_->getGravity(); 
+	std::array<double, 49> mass_array_right = arms_data_.at(right_arm_id_).model_handle_->getMass(); 
 	std::array<double, 42> jacobian_array_right = arms_data_.at(right_arm_id_).model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 	std::array<double, 7>  coriolis_array_right = arms_data_.at(right_arm_id_).model_handle_->getCoriolis(); 
+	std::array<double, 49> mass_array_left = arms_data_.at(right_arm_id_).model_handle_->getMass(); 
     std::array<double, 7>  gravity_array_left = arms_data_.at(left_arm_id_).model_handle_->getGravity(); 
+	std::array<double, 7>  coriolis_array_left = arms_data_.at(left_arm_id_).model_handle_->getCoriolis(); 
 	std::array<double, 42> jacobian_array_left = arms_data_.at(left_arm_id_).model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
 	// Eigen conversion
     Map<Matrix<double, 7, 1> > g1(gravity_array_left.data());                  // gravity vector from franka 
 	Map<Matrix<double, 7, 1> > g2(gravity_array_right.data());
+	Map<Matrix<double, 7, 1> > c1(coriolis_array_left.data());
 	Map<Matrix<double, 7, 1> > c2(coriolis_array_right.data());
+	Map<Matrix<double, 7, 7> > m1(mass_array_left.data());
+	Map<Matrix<double, 7, 7> > m2(mass_array_right.data());
 	Map<Matrix<double, 6, 7> > Jg_l(jacobian_array_left.data());
 	Map<Matrix<double, 6, 7> > Jg_r(jacobian_array_right.data());
 
@@ -529,11 +536,15 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Jr_inv = (Jg_r*m2_mario.inverse()*Jg_r_t).inverse()*Jg_r*(m2_mario.inverse()); // right arm
 	Jl_inv = (Jg_l*m1_mario.inverse()*Jg_l_t).inverse()*Jg_l*(m1_mario.inverse()); // left arm
 
-	// Mario model
-	Ma.block(0,0,7,7) << m1_mario; Ma.block(7,7,7,7) << m2_mario;
-    Ca.block(0,0,7,7) << c1_mario; Ca.block(7,7,7,7) << c2_mario;
-	ga_mario.head(7) << g1_mario; ga_mario.tail(7) = g2_mario;  
-	ga.head(7) << g1; ga.tail(7) = g2;  
+	// // Mario model
+	// Ma.block(0,0,7,7) << m1_mario; Ma.block(7,7,7,7) << m2_mario;
+    // Ca.block(0,0,7,7) << c1_mario; Ca.block(7,7,7,7) << c2_mario;
+	// ga_mario.head(7) << g1_mario; ga_mario.tail(7) = g2_mario;  
+	// ga.head(7) << g1; ga.tail(7) = g2;  
+
+	// Franka model
+	Ma.block(0,0,7,7) << m1; Ma.block(7,7,7,7) << m2;
+    ca.head(7) << c1; ca.tail(7) << c2;
 	
 	//Retrieve measured torques and ext forces from franka
 	Map<Matrix<double, 7, 1> > tau_J_d_left(robot_state_left.tau_J_d.data());                // previous cycle commanded torques [Nm]
@@ -658,7 +669,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
    
 //---------------- CONTROL COMPUTATION -----------------//
 	
-	tau_task << Ca*dq + Ma*aq + ga_mario - ga;  
+	// tau_task << Ca*dq + Ma*aq + ga_mario - ga;  
+   tau_task << ca + Ma*aq;  
 
 	
 // //---------------- NULLSPACE CONTROL COMPUTATION -----------------//  
@@ -668,13 +680,16 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 // 	//Dissipative term on joints + joints limits avoidance 
 
-   tau_null_left << N1 *(2 * (q_nullspace_ - q_l)) - N1 *(0.5 * dq_l); 
-   tau_null_right << N2 *(2 * (q_nullspace_ - q_r)) - N2 *(0.5 * dq_r); 
+//    tau_null_left << N1 *(2 * (q_nullspace_ - q_l)) - N1 *(0.5 * dq_l); 
+//    tau_null_right << N2 *(2 * (q_nullspace_ - q_r)) - N2 *(0.5 * dq_r); 
+
+   tau_null_left << - N1 *(0.5 * dq_l); 
+   tau_null_right << - N2 *(0.5 * dq_r); 
 	
 //----------------- FINAL CONTROL --------------------------------//
 	
-   tau_d_left << tau_task.head(7) + 0*tau_null_left; 
-   tau_d_right << tau_task.tail(7) + 0*tau_null_right; 
+   tau_d_left << tau_task.head(7) + tau_null_left; 
+   tau_d_right << tau_task.tail(7) + tau_null_right; 
 
 // // 	//=================================| END CONTROL |==================================//
 	
@@ -784,8 +799,6 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.ea[i] = e_pos_abs(i); 
 	}
 
-	// std::cout << "p1" << pos_l_.transpose() << std::endl; 
-	// std::cout << "p2" << pos_r_.transpose() << std::endl; 
 
 	for(int i=0; i<4;i++){
 		info_debug_msg.rot_r[i] = rot_r(i); 
@@ -835,12 +848,12 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
 void DualArmControl::desiredProjectTrajectoryCallback(
     	const panda_controllers::DesiredProjectTrajectoryConstPtr& msg) {
 			for (int i=0; i<8; i++){
-          		pose_a_d_(i) = msg->pose_d[i];
-          		dpose_a_d_(i) = msg->dpose_d[i];
-          		ddpose_a_d_(i) = msg->ddpose_d[i];
-          		pose_r_d_(i) = msg->pose_r[i];
-		  		dpose_r_d_(i) = msg->dpose_r[i];
-		  		ddpose_r_d_(i) = msg->ddpose_r[i];
+          		// pose_a_d_(i) = msg->pose_d[i];
+          		// dpose_a_d_(i) = msg->dpose_d[i];
+          		// ddpose_a_d_(i) = msg->ddpose_d[i];
+          		// pose_r_d_(i) = msg->pose_r[i];
+		  		// dpose_r_d_(i) = msg->dpose_r[i];
+		  		// ddpose_r_d_(i) = msg->ddpose_r[i];
           }
  } 
 
@@ -848,12 +861,12 @@ void DualArmControl::desiredProjectTrajectoryCallback(
 void DualArmControl::CompliantTrajCallback(
     	const panda_controllers::CompliantTraj::ConstPtr& msg) {
 			for (int i=0; i<8; i++){
-          		// pose_a_d_(i) = msg->pose_abs_c[i];
-          		// dpose_a_d_(i) = msg->dpose_abs_c[i];
-          		// ddpose_a_d_(i) = msg->ddpose_abs_c[i];
-          		// pose_r_d_(i) = msg->pose_rel_c[i];
-		  		// dpose_r_d_(i) = msg->dpose_rel_c[i];
-		  		// ddpose_r_d_(i) = msg->ddpose_rel_c[i];
+          		pose_a_d_(i) = msg->pose_abs_c[i];
+          		dpose_a_d_(i) = msg->dpose_abs_c[i];
+          		ddpose_a_d_(i) = msg->ddpose_abs_c[i];
+          		pose_r_d_(i) = msg->pose_rel_c[i];
+		  		dpose_r_d_(i) = msg->dpose_rel_c[i];
+		  		ddpose_r_d_(i) = msg->ddpose_rel_c[i];
           }
 		}										
 }  // end namespace panda_controllers

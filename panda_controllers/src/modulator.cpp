@@ -28,7 +28,9 @@
 #define     D_DEFAULT    2*sqrt(K_DEFAULT*1.5)       // [N*s/m]      default value translation relative damping
 #define     MASS         1.5                         // [kg]         apparent mass
 #define     K_a_DEFAULT  600                         // [Nm]         default absolute translational stiffness     
- 
+#define     D_a_DEFAULT  6*sqrt(K_a_DEFAULT*MASS);   // [Nm]         default absolute translational stiffness     
+#define     alpha        0.995                       // riducing factor for impedance
+
 typedef Matrix<double, 8, 1> Vector8d; typedef Matrix<double, 6, 1> Vector6d;
 
 using namespace DQ_robotics; using namespace std;  using namespace panda_controllers; 
@@ -109,8 +111,8 @@ Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec)
 
     //Parameters
     double k_min, k_max,k_max_2,k_rid,k_default,mass, beta, a0, csi,sc; 
-    k_max = 5000;
-    k_max_2 = 3800; 
+    k_max = 4000;
+    k_max_2 = 3000; 
     // k_max = 800;
     // k_max_2 = 900; 
     k_min = 30;
@@ -132,7 +134,7 @@ Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec)
         ki = k_default;
         d = 2*sqrt(ki); 
     }else if(phase==1){ // approach pahse
-            ki = 0.995*ki; // decrease k arbitrarly
+            ki = alpha*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
             if(ki < k_rid){
                 ki = k_rid;
@@ -161,7 +163,7 @@ Vector2d compute_gains(double ki,int phase,ros::Time t_curr,ros::Time time_prec)
                     d = sc*sqrt(ki*mass); 
                 }
     }else if(phase==4){ //release and eq phase
-        ki = 0.995*ki; // decrease k arbitrarly
+        ki = alpha*ki; // decrease k arbitrarly
         d = 2*sqrt(ki*mass); 
             if(ki < k_default){
               ki = k_default;
@@ -181,7 +183,7 @@ Vector2d compute_gains_rot(double ki,int phase,ros::Time t_curr,ros::Time time_p
     //Parameters
     double k_default,k_rid,mass, beta, a0, csi,sc; 
     k_default = K_OR_DEFAULT; 
-    k_rid = 10; 
+    k_rid = 20; 
     mass = 1.5; 
     beta = 0.98;
     a0 = 0.95;
@@ -199,7 +201,7 @@ Vector2d compute_gains_rot(double ki,int phase,ros::Time t_curr,ros::Time time_p
         ki = ki;
         d = 2*sqrt(ki);        
     }else if(phase==2){ // squeeze
-            ki = 0.995*ki; // decrease k arbitrarly
+            ki = alpha*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
             if(ki < k_rid){
                 ki = k_rid;
@@ -248,7 +250,7 @@ Vector2d compute_abs_gains(double ki,int phase,ros::Time t_curr,ros::Time time_p
         ki = k_default;
         d = 2*sqrt(ki); 
     }else if(phase==1){ // approach pahse
-            ki = 0.999*ki; // decrease k arbitrarly
+            ki = alpha*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
             if(ki < k_rid){
                 ki = k_rid;
@@ -277,7 +279,7 @@ Vector2d compute_abs_gains(double ki,int phase,ros::Time t_curr,ros::Time time_p
                     d = 2*sqrt(ki*mass); 
                 }
     }else if(phase==4){ //release and eq phase
-        ki = 0.999*ki; // decrease k arbitrarly
+        ki = alpha*ki; // decrease k arbitrarly
         d = 2*sqrt(ki*mass); 
             if(ki < k_default){
               ki = k_default;
@@ -294,7 +296,7 @@ Vector2d compute_abs_gains(double ki,int phase,ros::Time t_curr,ros::Time time_p
     //Parameters
     double k_default,k_rid,mass, beta, a0, csi,sc; 
     k_default = K_OR_DEFAULT; 
-    k_rid = 20; 
+    k_rid = 50; 
     mass = 1.5; 
     beta = 0.98;
     a0 = 0.95;
@@ -312,7 +314,7 @@ Vector2d compute_abs_gains(double ki,int phase,ros::Time t_curr,ros::Time time_p
         ki = ki;
         d = 2*sqrt(ki);        
     }else if(phase==2){ // squeeze
-            ki = 0.995*ki; // decrease k arbitrarly
+            ki = alpha*ki; // decrease k arbitrarly
             d = sc*sqrt(ki*mass); 
             if(ki < k_rid){
                 ki = k_rid;
@@ -408,7 +410,8 @@ int main(int argc, char **argv)
         time_prec = ros::Time::now();
         kx = set_k_init(); ky = set_k_init(); kz = set_k_init();  kx_rot = K_OR_DEFAULT; ky_rot = K_OR_DEFAULT; kz_rot = K_OR_DEFAULT; 
         dx = set_d_init(); dy = set_d_init(); dz = set_d_init();  dx_rot = D_OR_DEFAULT; dy_rot = D_OR_DEFAULT; dz_rot = D_OR_DEFAULT; 
-        kx_a = K_a_DEFAULT; ky_a = K_a_DEFAULT; kz_a = K_a_DEFAULT; 
+        kx_a = K_a_DEFAULT; ky_a = K_a_DEFAULT; kz_a = K_a_DEFAULT; dx_a = D_a_DEFAULT; dy_a = D_a_DEFAULT; dz_a = D_a_DEFAULT; 
+        kxa_rot = K_OR_DEFAULT; kya_rot = K_OR_DEFAULT; kza_rot = K_OR_DEFAULT; dxa_rot = D_OR_DEFAULT; dya_rot = D_OR_DEFAULT; dza_rot = D_OR_DEFAULT;
     }
         t_curr = ros::Time::now();
         
@@ -425,9 +428,9 @@ int main(int argc, char **argv)
         gains_abs_y = compute_abs_gains(ky_a,phase(2),t_curr,time_prec);
         gains_abs_z = compute_abs_gains(kz_a,phase(2),t_curr,time_prec); 
         //rot abs gain computation
-        gains_abs_rot_x = compute_gains_abs_rot(kx_rot,phase(2),t_curr,time_prec); 
-        gains_abs_rot_y = compute_gains_abs_rot(ky_rot,phase(2),t_curr,time_prec); 
-        gains_abs_rot_z = compute_gains_abs_rot(kz_rot,phase(2),t_curr,time_prec); 
+        gains_abs_rot_x = compute_gains_abs_rot(kxa_rot,phase(2),t_curr,time_prec); 
+        gains_abs_rot_y = compute_gains_abs_rot(kya_rot,phase(2),t_curr,time_prec); 
+        gains_abs_rot_z = compute_gains_abs_rot(kza_rot,phase(2),t_curr,time_prec); 
 
         //Translational relative imp
         kx = gains_x(0);  ky = gains_y(0); kz = gains_z(0); 
@@ -454,11 +457,11 @@ int main(int argc, char **argv)
         D[0] = dx_rot; D[7] = dy_rot; D[14] = dz_rot;
         D[21] = dx; D[28] = dy; D[35] = dz;
 
-        K_abs[0] = K_OR_DEFAULT; K_abs[7] = K_OR_DEFAULT; K_abs[14] = K_OR_DEFAULT;
-        K_abs[21] = kx_a; K_abs[28] = ky_a; K_abs[35] = kz_a;
+        K_abs[0] = kxa_rot; K_abs[7] = kya_rot; K_abs[14] = kza_rot;
+        K_abs[21] = K_a_DEFAULT; K_abs[28] = K_a_DEFAULT; K_abs[35] =  K_a_DEFAULT;
 
-        D_abs[0] = D_OR_DEFAULT; D[7] = D_OR_DEFAULT; D[14] = D_OR_DEFAULT;
-        D_abs[21] = dx_a; D_abs[28] = dy_a; D_abs[35] = dz_a;
+        D_abs[0] = dxa_rot; D_abs[7] = dya_rot; D_abs[14] = dza_rot;
+        D_abs[21] = D_a_DEFAULT;  D_abs[28] = D_a_DEFAULT; D_abs[35] = D_a_DEFAULT;
 
         // Publish desired impedance
          imp_msg.header.stamp = ros::Time::now();

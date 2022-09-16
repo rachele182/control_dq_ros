@@ -364,10 +364,10 @@ Vector3d demo_coop (Vector3d pos_in_1, Vector3d pos_in_2, Vector3d pos_in_a, dou
   double pc1, pc2;
   Vector3d pos1_cont; Vector3d pos2_cont;
   y_offset = 0.02; 
-  pc1 = 1.003;
-  pc2 = 0.503; 
-  pos1_cont << 0.39864, 0.987016-y_offset, 0.231; 
-  pos2_cont << 0.41971, 0.58765+y_offset,  0.231; 
+  // pos1_cont << 0.430482, 0.964951,  0.23117;
+  // pos2_cont << 0.416345, 0.576545, 0.225636; 
+  pos1_cont << pos_in_1(0)-0.09,pos_in_1(1)-0.1,pos_in_1(2); 
+  pos2_cont << pos_in_2(0)+0.09,pos_in_2(1)+0.1,pos_in_2(2); 
   x_offset = 0*0.05; 
   z_offset = 0.15; //m 
   y_offset = 0.22; 
@@ -469,8 +469,11 @@ Vector3d demo_contact (Vector3d pos_in_1, Vector3d pos_in_2, Vector3d pos_in_a, 
   double z_offset; double y_offset; double x_offset; 
   Vector3d pos1_cont,pos2_cont;
   y_offset = 0*0.03; 
-  pos1_cont << 0.46785, 1-y_offset, 0.2494; 
-  pos2_cont << 0.47107, 0.6+y_offset, 0.2494; 
+  // pos1_cont << 0.460664, 0.971898, 0.238105;
+  // pos2_cont << 0.45474, 0.583888, 0.237987; 
+  pos1_cont << pos_in_1(0), pos_in_1(1)-0.2, pos_in_1(2); 
+  pos2_cont << pos_in_2(0), pos_in_2(1)+0.2, pos_in_2(2); 
+ 
 
   if(time>=0 && time<5){ //initial pause
     tmp1 << pos_in_1; 
@@ -872,6 +875,7 @@ int main(int argc, char **argv)
                           x2_des, dx2_des,ddx2_des, 
                           traj_dual.pa_des,traj_dual.va_des,traj_dual.a_des, DQ(or_a)); 
         }else if (choice == 7){
+          or_1 = vec4(pose_1_dq.rotation()); or_2 = vec4(pose_2_dq.rotation()); or_a = vec4(pose_a_dq.rotation());
           rot_1 = DQ(or_1); rot_2 = DQ(or_2); 
           rot_1_n =  DQ(or_1); rot_2_n =  DQ(or_2); 
           phase = demo_contact(pos_in_1,pos_in_2,pos_a_in,t); // compute EE traj for each arm
