@@ -32,14 +32,14 @@ using DQ_robotics::C8;
 
 using namespace DQ_robotics;
 
-#define 	KP			    170.0    // proportional gain motion controller (relative)
+#define 	KP			    150.0    // proportional gain motion controller (relative)
 #define 	KD			    30.0     // derivative gain motion controller
-#define 	KP_ABS			120.0    // proportional gain motion controller absolute pose
+#define 	KP_ABS			80.0    // proportional gain motion controller absolute pose
 #define 	KD_ABS			20.0     // derivative gain motion controller absolute pose
 #define 	KO			    4.0  	 // gain momentum observer
 #define     KI              0*30.0   // integrative term 
 #define 	D_JOINTS	    2.0      // dissipative term joints
-#define 	COLL_LIMIT		100.0     // 
+#define 	COLL_LIMIT		300.0     // 
 #define 	NULL_STIFF		2.0
 #define 	JOINT_STIFF		{3000, 3000, 3000, 3000, 3000, 2000, 100}
 #define     RHO             M_PI
@@ -164,6 +164,7 @@ bool DualArmControl::init( hardware_interface::RobotHW* robot_hw,
 
 	pub_robot_state_ = node_handle.advertise<panda_controllers::RobotState>("/motion_control_dq/robot_state", 1);
 	pub_info_debug =  node_handle.advertise<panda_controllers::InfoDebug>("/motion_control_dq/info_debug", 1);
+	pub_info_msg =  node_handle.advertise<panda_controllers::InfoMsg>("/motion_control_dq/info_msg", 1);
 
 
 	//---------------- INITIALIZE SERVICE CLIENTS ------------------//
@@ -307,10 +308,10 @@ void DualArmControl::starting(const ros::Time& /*time*/) {
 	//////////////////////////////////////
 
 	//Load Panda robot (left arm)
-	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0);
+	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0*0.05);
 
 	// Load Panda robot (right arm)
-	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0);
+	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0*0.05);
 
 	// Cooperative dual arm system
 	DQ_CooperativeDualTaskSpace dual_panda = init_dual_panda(&panda_left, &panda_right);
@@ -412,8 +413,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 
 //============= LOAD CDTS MODEL ======================= //
 
-	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0);
-	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0);
+	DQ_SerialManipulator panda_left = init_dq_robot(p_b_0_l,r_b_0_l,0*0.05);
+	DQ_SerialManipulator panda_right = init_dq_robot(p_b_0_r,r_b_0_r,0*0.05);
 	DQ_CooperativeDualTaskSpace dual_panda = init_dual_panda(&panda_left, &panda_right);
 
  	// Control Variables
@@ -537,14 +538,14 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	Jl_inv = (Jg_l*m1_mario.inverse()*Jg_l_t).inverse()*Jg_l*(m1_mario.inverse()); // left arm
 
 	// // Mario model
-	// Ma.block(0,0,7,7) << m1_mario; Ma.block(7,7,7,7) << m2_mario;
-    // Ca.block(0,0,7,7) << c1_mario; Ca.block(7,7,7,7) << c2_mario;
-	// ga_mario.head(7) << g1_mario; ga_mario.tail(7) = g2_mario;  
-	// ga.head(7) << g1; ga.tail(7) = g2;  
+	Ma.block(0,0,7,7) << m1_mario; Ma.block(7,7,7,7) << m2_mario;
+    Ca.block(0,0,7,7) << c1_mario; Ca.block(7,7,7,7) << c2_mario;
+	ga_mario.head(7) << g1_mario; ga_mario.tail(7) = g2_mario;  
+	ga.head(7) << g1; ga.tail(7) = g2;  
 
 	// Franka model
-	Ma.block(0,0,7,7) << m1; Ma.block(7,7,7,7) << m2;
-    ca.head(7) << c1; ca.tail(7) << c2;
+	// Ma.block(0,0,7,7) << m1; Ma.block(7,7,7,7) << m2;
+    // ca.head(7) << c1; ca.tail(7) << c2;
 	
 	//Retrieve measured torques and ext forces from franka
 	Map<Matrix<double, 7, 1> > tau_J_d_left(robot_state_left.tau_J_d.data());                // previous cycle commanded torques [Nm]
@@ -633,10 +634,12 @@ void DualArmControl::update(const ros::Time& /*time*/,
     e_pos_rel = des_pos_rel - pos_rel; 
     e_pos_abs = des_pos_abs - pos_abs; 
 
+
 	//rotation errors 
 	DQ rot_r_d,e_rot_rel_dq; 
 	Vector8d e_rot_rel; 
 	rot_r_d = des_pos_r_dq.rotation(); 
+
 
 //  //======================| CONTROL VARIABLES |======================//
     Vector6d wrench_ext_r_hat,wrench_ext_l_hat;  // estimated ext wrench (w. momentum observer)
@@ -669,8 +672,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
    
 //---------------- CONTROL COMPUTATION -----------------//
 	
-	// tau_task << Ca*dq + Ma*aq + ga_mario - ga;  
-   tau_task << ca + Ma*aq;  
+	tau_task << Ca*dq + Ma*aq + ga_mario - ga;  
+//    tau_task << ca + Ma*aq;  
 
 	
 // //---------------- NULLSPACE CONTROL COMPUTATION -----------------//  
@@ -688,8 +691,8 @@ void DualArmControl::update(const ros::Time& /*time*/,
 	
 //----------------- FINAL CONTROL --------------------------------//
 	
-   tau_d_left << tau_task.head(7) + tau_null_left; 
-   tau_d_right << tau_task.tail(7) + tau_null_right; 
+   tau_d_left << tau_task.head(7) + 0*tau_null_left; 
+   tau_d_right << tau_task.tail(7) + 0*tau_null_right; 
 
 // // 	//=================================| END CONTROL |==================================//
 	
@@ -799,12 +802,17 @@ void DualArmControl::update(const ros::Time& /*time*/,
 		info_debug_msg.ea[i] = e_pos_abs(i); 
 	}
 
+	// std::cout << "pos_rel" << pos_rel.transpose() << std::endl; 
+	// std::cout << "pos_abs" << pos_abs.transpose() << std::endl; 
 
 	for(int i=0; i<4;i++){
 		info_debug_msg.rot_r[i] = rot_r(i); 
 		info_debug_msg.rot_a[i] = rot_a(i); 
 	}
 
+	// std::cout << "rot_r" << rot_r.transpose() << std::endl;
+	// std::cout << "rot_a" << rot_a.transpose() << std::endl;
+	
 	info_debug_msg.abs_norm = e_pos_abs.norm();
 	info_debug_msg.rel_norm = e_pos_rel.norm();
 	// info_debug_msg.abs_norm = er.norm();
@@ -839,6 +847,7 @@ Eigen::Matrix<double, 7, 1> DualArmControl::saturateTorqueRate(
   return tau_d_saturated;
 }
 
+Vector3d phase; 
 
 // // // //                          CALLBACKS		                     //
 // // // //---------------------------------------------------------------//
@@ -854,6 +863,9 @@ void DualArmControl::desiredProjectTrajectoryCallback(
           		// pose_r_d_(i) = msg->pose_r[i];
 		  		// dpose_r_d_(i) = msg->dpose_r[i];
 		  		// ddpose_r_d_(i) = msg->ddpose_r[i];
+          }
+		  	for (int i=0; i<3; i++){
+				phase(i) = msg->phase_array[i]; 
           }
  } 
 

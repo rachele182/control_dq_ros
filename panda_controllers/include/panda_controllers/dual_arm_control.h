@@ -39,6 +39,7 @@
 #include <panda_controllers/EEpose.h>
 #include <panda_controllers/InfoDebug.h>
 #include <panda_controllers/RobotState.h>
+#include <panda_controllers/InfoMsg.h>
 
 #include "std_msgs/Float64MultiArray.h"
 #include "std_msgs/Float64.h"
@@ -217,8 +218,10 @@ class DualArmControl : public controller_interface::MultiInterfaceController<
 		// //----------PUBLISHERS----------//
 		ros::Publisher pub_robot_state_;
 		ros::Publisher pub_info_debug;
+		ros::Publisher pub_info_msg;
 
         // //----------MESSAGES----------//
+		std_msgs::Float64 info_msg; 
 		panda_controllers::InfoDebug info_debug_msg;	
 		panda_controllers::RobotState robot_state_msg;
 };

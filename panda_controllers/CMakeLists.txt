@@ -27,6 +27,7 @@ find_package(ALGLIB REQUIRED)
 find_package(Franka 0.9.0 REQUIRED)
 
 add_message_files(FILES
+  InfoMsg.msg
   RobotState.msg
   DesiredProjectTrajectory.msg
   EEpose.msg

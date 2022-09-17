@@ -4,10 +4,10 @@
 
 #define     MASS          1.5                          // [kg]         apparent mass
 #define     SC            6                            // empyrically overdamping factor     
-#define     Kr_DEFAULT    600                          // [Nm]         default relative stiffness
-#define     Dr_DEFAULT    SC*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
+#define     Kr_DEFAULT    800                          // [Nm]         default relative stiffness
+#define     Dr_DEFAULT    2*sqrt(Kr_DEFAULT*MASS);    // [Ns/m]       default relative damping
 #define     Ka_DEFAULT    600                          // [Nm]         default absolutestiffness   
-#define     Da_DEFAULT    SC*sqrt(Ka_DEFAULT*MASS);    // [Ns/m]       default absolute damping          
+#define     Da_DEFAULT    6*sqrt(Ka_DEFAULT*MASS);    // [Ns/m]       default absolute damping          
 #define     K_ROT         600               
 #define     D_ROT         2*sqrt(K_ROT*MASS);      
 #define     DZ_VALUE_F    2.0                          // dead zone value ext forces (?)       
@@ -87,9 +87,9 @@ void dual_impedance_loop::wrench_adaptor(Vector6d wrench_1,Vector6d wrench_2,DQ 
     Mr = 0.5*(wr2_1.tail(3)- wr1_1.tail(3)); // rel torque
     wa.head(3) << fa; 
     wa.tail(3) << Ma; 
-    wa.tail(3).setZero();
     wr.head(3) << fr;  
     wr.tail(3) << Mr;
+    wa.tail(3).setZero(); 
     wr.tail(3).setZero();
     coop_wrench.wa = wa; coop_wrench.wr = wr; 
 }
@@ -239,10 +239,10 @@ void dual_impedance_loop::update(){
   //  BD_r(3,3)= Dr_DEFAULT; BD_r(4,4)= Dr_DEFAULT; BD_r(5,5)= Dr_DEFAULT;
 
    // == Absolute impedance
-  //  KD_a(0,0)= K_ROT; KD_a(1,1)= K_ROT; KD_a(2,2)= K_ROT;
-  //  KD_a(3,3)= Ka_DEFAULT; KD_a(4,4)= Ka_DEFAULT; KD_a(5,5)= Ka_DEFAULT;
-  //  BD_a(0,0)= D_ROT;  BD_a(1,1)= D_ROT; BD_a(2,2)= D_ROT;
-  //  BD_a(3,3)= Da_DEFAULT; BD_a(4,4)= Da_DEFAULT; BD_a(5,5)= Da_DEFAULT;
+   KD_a(0,0)= K_ROT; KD_a(1,1)= K_ROT; KD_a(2,2)= K_ROT;
+   KD_a(3,3)= Ka_DEFAULT; KD_a(4,4)= Ka_DEFAULT; KD_a(5,5)= Ka_DEFAULT;
+   BD_a(0,0)= D_ROT;  BD_a(1,1)= D_ROT; BD_a(2,2)= D_ROT;
+   BD_a(3,3)= Da_DEFAULT; BD_a(4,4)= Da_DEFAULT; BD_a(5,5)= Da_DEFAULT;
    MD =I6*MASS;
    
   //Current poses
@@ -254,6 +254,9 @@ void dual_impedance_loop::update(){
 
   wrench_l_dz = dead_zone(wrench_ext_l_,DZ_VALUE_F, DZ_VALUE_M ); 
   wrench_r_dz = dead_zone(wrench_ext_r_,DZ_VALUE_F, DZ_VALUE_M );
+
+  wrench_l_dz = wrench_ext_l_; 
+  wrench_r_dz = wrench_ext_r_; 
 
   // =============================================///
 
@@ -422,8 +425,8 @@ void dual_impedance_loop::desiredImpedanceProjectCallback(
 		for (int j=0; j<6; j++){
 			KD_r(i, j) = msg->stiffness_matrix[i*6 + j];
 			BD_r(i, j) = msg->damping_matrix[i*6 + j];
-      KD_a(i, j) = msg->stiffness_abs_matrix[i*6 + j];
-			BD_a(i, j) = msg->damping_abs_matrix[i*6 + j];
+      // KD_a(i, j) = msg->stiffness_abs_matrix[i*6 + j];
+			// BD_a(i, j) = msg->damping_abs_matrix[i*6 + j];
 		}
 	}
 }

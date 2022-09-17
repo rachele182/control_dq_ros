@@ -2,7 +2,7 @@
 <launch>
   <!--Be sure to pass the IPs of your pandas like robot_ips:="{panda_1/robot_ip: <my_ip_1>, panda_2/robot_ip: <my_ip_2>}"   -->
   <arg name="left_ip" default="192.168.3.100"/> <!-- right arm in code -->
-  <arg name="right_ip" default="192.168.3.101"/> <!-- left arm in code -->
+  <arg name="right_ip" default="192.168.3.2"/> <!-- left arm in code -->
 
   <arg name="robot_id" default="panda_dual" />
   <arg name="rviz" default="true" />

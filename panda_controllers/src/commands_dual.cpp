@@ -92,14 +92,18 @@ void dummy(Vector3d posr_i,Vector3d posa_i, double tf){
 Vector3d demo_contact (Vector3d posr_i, Vector3d posa_i, double time) {
   Vector3d tmpr,tmpa;
   Vector3d phase; 
-  Vector3d p_rel_ref; 
+  Vector3d p_rel_ref, p_abs_ref;  
   double t_f, t,pc;  
   Vector3d pos_r_f, pos_a_f; 
   double xr_offset;  // offset on x_axis relative frame
   double zr_offset;  // offset on z_axis relative frame
   zr_offset = 0.7;   //m 
   pc = 0.8; 
-  p_rel_ref << 0.037,0.0285,0.488-0.04; 
+  p_rel_ref <<0.0094338,0.00907125,0.489452-0.02; 
+  p_abs_ref << 0.440214, 0.744113, 0.232157;  
+  // p_rel_ref << posr_i(0), posr_i(1), 0.488; 
+  // p_abs_ref << posa_i(0), posa_i(1), posa_i(2); 
+
 
   if(time>=0 && time<2){ //initial pause
     tmpr << posr_i; 
@@ -109,38 +113,38 @@ Vector3d demo_contact (Vector3d posr_i, Vector3d posa_i, double time) {
     t_f = 2; 
     t = time;
     phase.setZero(); 
-  }else if (time>=2 && time<7){ //approach phase
+  }else if (time>=2 && time<12){ //approach phase
     tmpr << posr_i(0), posr_i(1), posr_i(2); 
     tmpa << posa_i; 
     pos_r_f << p_rel_ref; 
-    pos_a_f << tmpa;  
-    t_f = 5;
+    pos_a_f << p_abs_ref;   
+    t_f = 10;
     t = time - 2; 
     phase(2) = 1; 
-  }else if (time>=7 && time<12){ //pause (squeeze phase)
+  }else if (time>=12 && time<17){ //pause (squeeze phase)
     tmpr << p_rel_ref; 
-    tmpa << posa_i; 
+    tmpa << p_abs_ref; ; 
     pos_r_f << tmpr; 
     pos_a_f << tmpa;  
     t_f = 5;
-    t = time - 7; 
+    t = time - 12; 
     phase(2) = 2; 
-  }else if (time>=12 && time<17){ //release
+  }else if (time>=17 && time<27){ //release
     tmpr << p_rel_ref; 
-    tmpa << posa_i; 
+    tmpa << p_abs_ref; 
     pos_r_f << posr_i(0), posr_i(1), posr_i(2); 
     pos_a_f << tmpa; 
-    t_f = 5; 
-    t = time - 12; 
-    phase(2) = 3; 
+    t_f = 10; 
+    t = time - 17; 
+    phase(2) = 4; 
   }else { // eq phase
     tmpr << posr_i(0), posr_i(1), posr_i(2); 
-    tmpa << posa_i; 
+    tmpa << p_abs_ref; 
     pos_r_f << tmpr; 
     pos_a_f << tmpa;
     t_f = 1000; 
-    t = time - 17; 
-    phase(2) = 3; 
+    t = time - 27; 
+    phase(2) = 4; 
   }
      
    //des traj for relative var
@@ -388,6 +392,72 @@ Vector3d compute_ref(Vector8d pose_rel_in){
   
 }
 
+//lifting
+Vector3d demo_lifting (Vector3d posr_i, Vector3d posa_i, double time) {
+  Vector3d tmpr,tmpa;
+  Vector3d phase; 
+  Vector3d p_rel_ref, p_abs_ref;  
+  double t_f, t,pc;  
+  Vector3d pos_r_f, pos_a_f; 
+  p_rel_ref << posr_i; 
+  p_abs_ref << posa_i(0), posa_i(1), posa_i(2)+0.25; 
+  pc = 0.12; 
+  //pc = 0.11; 
+
+  if(time>=0 && time<5){ //initial 
+    tmpr << posr_i; 
+    tmpa << posa_i; 
+    pos_r_f << posr_i(0),posr_i(1),posr_i(2)-pc; 
+    pos_a_f << tmpa; 
+    t_f = 5; 
+    t = time;
+    phase(2)= 1; 
+  }else if (time>=5 && time<10){ //adaptive phase (increase relative to grasp)
+    tmpr << posr_i(0),posr_i(1),posr_i(2)-pc;  
+    tmpa << posa_i; 
+    pos_r_f << posr_i(0),posr_i(1),posr_i(2)-pc; 
+    pos_a_f << tmpa;   
+    t_f = 5;
+    t = time - 5; 
+    phase(2) = 2; 
+  }else if (time>=10 && time<15){ // lift phase
+    tmpr << posr_i(0),posr_i(1),posr_i(2)-pc; 
+    tmpa << posa_i; 
+    pos_r_f << tmpr; 
+    pos_a_f << p_abs_ref;  
+    t_f = 5;
+    t = time - 10; 
+    phase(2) = 3; 
+  }else if (time>=15 && time<20){ // come back down 
+    tmpr << posr_i(0),posr_i(1),posr_i(2)-pc; 
+    tmpa << p_abs_ref; 
+    pos_r_f << tmpr; 
+    pos_a_f << p_abs_ref; 
+    t_f = 5; 
+    t = time - 15; 
+    phase(2) = 3; 
+  }else { // eq phase
+    tmpr << posr_i(0),posr_i(1),posr_i(2)-pc; 
+    tmpa << p_abs_ref; 
+    pos_r_f << tmpr; 
+    pos_a_f << tmpa;
+    t_f = 1000; 
+    t = time - 20; 
+    phase(2) = 3; 
+  }
+     
+   //des traj for relative var
+   traj_dual.pr_des << tmpr + (tmpr - pos_r_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
+   traj_dual.vr_des << (tmpr - pos_r_f)*(60*(pow(t,3)/pow(t_f,4)) - 30*(pow(t,4)/pow(t_f,5)) -30*(pow(t,2)/pow(t_f,3)));
+   traj_dual.ar_des << (tmpr - pos_r_f)*(180*(pow(t,2)/pow(t_f,4)) - 120*(pow(t,3)/pow(t_f,5)) -60*(t/pow(t_f,3)));
+  
+   //des trj for absolute var
+   traj_dual.pa_des << tmpa + (tmpa - pos_a_f)*(15*pow((t/t_f),4) - 6*pow((t/t_f),5) -10*pow((t/t_f),3));
+   traj_dual.va_des << (tmpa - pos_a_f)*(60*(pow(t,3)/pow(t_f,4)) - 30*(pow(t,4)/pow(t_f,5)) -30*(pow(t,2)/pow(t_f,3)));
+   traj_dual.a_des << (tmpa - pos_a_f)*(180*(pow(t,2)/pow(t_f,4)) - 120*(pow(t,3)/pow(t_f,5)) -60*(t/pow(t_f,3)));
+
+   return phase; 
+}
 
 // ========================= COMPUTE DQ TRAJ ========================//
 // Fixed orientation
@@ -399,12 +469,12 @@ Vector3d compute_ref(Vector8d pose_rel_in){
         DQ x_des_dq,dx_des_dq,ddx_des_dq;  
         DQ or_dq_; //relative orientation
         
-        if(phase(2)==0 || phase(2)==1){
-          or_dq_ = or_dq; //maintain initial orientation
-        }else{
-          or_dq_ = or_n; // new relative rotation after stiff modulation
-        }
-
+        // if(phase(2)==0 || phase(2)==1 || phase(2) ==2) {
+        //   or_dq_ = or_dq; 
+        // }else{
+        //   or_dq_ = or_n; //new relative rotation after stiff modulation
+        // }
+        or_dq_ = or_dq; 
         pos_r_des_dq = DQ(posr_des);    
         x_des_dq = or_dq_ + 0.5*E_*(pos_r_des_dq*or_dq_); 
         x_des_dq = x_des_dq * x_des_dq.inv().norm();
@@ -525,14 +595,14 @@ int choice;
   
   while (ros::ok())
   {
-    cout<<"choice:   (1:dummy, 2:contact, 3:demo, 4:demo_box_2, 5:try_nom) "<<endl;
+    cout<<"choice:   (1:dummy, 2:contact, 3:demo, 4:demo_box_2, 5:demo_lifting) "<<endl;
     cin>>choice;
 
     if(choice == 1){
       cout<<"insert time_f: "<<endl;
       cin>>tf;   
     }else if (choice == 2){
-      tf = 25; 
+      tf = 30; 
       cout <<"contact_demo_loaded.." << endl; 
     }else if(choice == 3){
       tf = 40;
@@ -540,6 +610,9 @@ int choice;
     }else if(choice == 4){
       tf = 40;
       cout<< "starting demo"<<endl; 
+    }else if(choice == 5){
+      tf = 25;
+      cout<< "starting demo lifting"<<endl; 
     }
     ros::spinOnce();
 
@@ -568,15 +641,16 @@ int choice;
 
 
       }else if (choice == 2){
-        //or_a = vec4(pose_a_dq.rotation());
-        or_r = vec4(pose_r_dq.rotation()); 
+        Vector4d or_n; 
+        or_n = vec4(pose_r_dq.rotation()); 
         or_a_dq = DQ(or_a);
-        DQ or_n; or_n = pose_r_dq.rotation(); 
-        or_r_dq = DQ(or_r);
+        DQ or_n_dq; 
+        or_n_dq = DQ(or_n); 
+        or_r_dq = DQ(or_r); //initial orientation
         phase = demo_contact(pos_r_in, pos_a_in, t); 
         pos_r_des << traj_dual.pr_des; vel_r_des << traj_dual.vr_des; acc_r_des << traj_dual.ar_des;
         pos_a_des << traj_dual.pa_des; vel_a_des << traj_dual.va_des; acc_a_des << traj_dual.a_des; 
-        gen_dual_traj_dq(pos_r_des,vel_r_des,acc_r_des,or_r_dq, or_n, pos_a_des,vel_a_des,acc_a_des, or_a_dq,phase); 
+        gen_dual_traj_dq(pos_r_des,vel_r_des,acc_r_des,or_r_dq, or_n_dq, pos_a_des,vel_a_des,acc_a_des, or_a_dq,phase); 
 
       }else if (choice == 3){
 
@@ -598,7 +672,18 @@ int choice;
         pos_a_des << traj_dual.pa_des; vel_a_des << traj_dual.va_des; acc_a_des << traj_dual.a_des; 
         gen_nom_traj_dq(pos_r_des,vel_r_des,acc_r_des,traj_dual.or_r_des,traj_dual.dor_r_des, traj_dual.ddor_r_des,
                         pos_a_des,vel_a_des, acc_a_des,traj_dual.or_a_des,traj_dual.dor_a_des, traj_dual.ddor_a_des); 
+      }else if (choice == 5){
+        or_a_dq = DQ(or_a);
+        DQ or_n; 
+        or_n = DQ(or_r); 
+        or_r_dq = DQ(or_r);
+        phase = demo_lifting(pos_r_in, pos_a_in, t); 
+        pos_r_des << traj_dual.pr_des; vel_r_des << traj_dual.vr_des; acc_r_des << traj_dual.ar_des;
+        pos_a_des << traj_dual.pa_des; vel_a_des << traj_dual.va_des; acc_a_des << traj_dual.a_des; 
+        gen_dual_traj_dq(pos_r_des,vel_r_des,acc_r_des,or_r_dq, or_n, pos_a_des,vel_a_des,acc_a_des, or_a_dq,phase); 
+
       }
+
 
 ///===========================PUBLISHING =========================///
       //==== DEBUG utils=====///
