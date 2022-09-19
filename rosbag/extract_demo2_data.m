@@ -140,24 +140,6 @@ tt = 0:0.001:17.3;
 sizet = size(tt,2);
 lim2 = 17.3; 
  
-a = 2;
-b = 3;
-y1 = a.*randn(3300,1) + b; 
-a2 = 2; 
-b2 = -3; 
-y2 = a2.*randn(3300,1) + b2;
-
-y1Noisy = awgn(y1,10,'measured');
-y2Noisy = awgn(y2,10,'measured');
-
-
-
-for j = 1:300
-    for i = 14000:sizet
-        fl(2,i) = y1Noisy(j); 
-        fr(2,i) = y2Noisy(j); 
-    end
-end
     
 f = figure;
 f.Renderer = 'painters';
