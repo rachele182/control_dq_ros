@@ -3,8 +3,8 @@ clear all; close all; clc;
 
 %% INPUTS
 %% solution with fixed stiffness
-filename = 'demo_box_no_mod_k.bag';       % Rosbag to extract
-save_name = "fixed_impedance.mat";        % Name of dest mat file
+filename = 'demo_box_adaptive_adm.bag';       % Rosbag to extract
+save_name = "variable_impedance.mat";        % Name of dest mat file
 
 %% Extract data from rosbag
 
