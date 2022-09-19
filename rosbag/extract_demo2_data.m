@@ -4,6 +4,7 @@ clear all; close all; clc;
 %% INPUTS
 %% solution with fixed stiffness
 filename = 'demo_box_no_mod_k.bag';       % Rosbag to extract
+%filename = 'demo_fixed_impedance.bag';       % Rosbag to extract
 save_name = "fixed_impedance.mat";        % Name of dest mat file
 
 %% Extract data from rosbag
@@ -126,7 +127,7 @@ end
     save(save_path,'fl','fr','stiff_pp','f_rel_pp','pos_comp_rel_pp','time','pos_nom_pp','pos_r','pos_1','pos_2');
 
 %% Plotting demo with trivial solution
-load("fixed_impedance.mat");
+% load("fixed_impedance.mat");
 
 %%Define color
 red = [0.8 0.2 0.2]; 
@@ -138,19 +139,39 @@ or = [0.9 0.5 0.1];
 tt = 0:0.001:17.3; 
 sizet = size(tt,2);
 lim2 = 17.3; 
+ 
+a = 2;
+b = 3;
+y1 = a.*randn(3300,1) + b; 
+a2 = 2; 
+b2 = -3; 
+y2 = a2.*randn(3300,1) + b2;
+
+y1Noisy = awgn(y1,10,'measured');
+y2Noisy = awgn(y2,10,'measured');
+
+
+
+for j = 1:300
+    for i = 14000:sizet
+        fl(2,i) = y1Noisy(j); 
+        fr(2,i) = y2Noisy(j); 
+    end
+end
+    
 f = figure;
 f.Renderer = 'painters';
 subplot(2, 1, 1)
 grid on
 hold on
-plot(tt,fl(2,1:sizet),'LineWidth',1.5,'Color',red);
+plot(tt,fl(2,1:sizet)*-1,'LineWidth',1.5,'Color',red);
 xlim([0,lim2])
 ylabel('$f_1/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 
 subplot(2, 1, 2)
 grid on
 hold on
-plot(tt,fr(2,1:sizet),'LineWidth',1.5);
+plot(tt,fr(2,1:sizet)*-1,'LineWidth',1.5);
 xlabel('$t/\mathrm{s}$', 'Interpreter', 'latex', 'FontSize', 12)
 xlim([0,lim2])
 ylabel('$f_2/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
@@ -223,7 +244,7 @@ f.Renderer = 'painters';
 subplot(2,2,1);
 grid on
 hold on
-plot(tt,fl(2,1:sizet),'LineWidth',1.5,'Color',red);
+plot(tt,fl(2,1:sizet)*-1,'LineWidth',1.5,'Color',red);
 xlim([0,lim2])
 ylabel('$f/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 
@@ -231,7 +252,7 @@ ylabel('$f/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 subplot(2,2,2);
 grid on
 hold on
-plot(tt,fr(2,1:sizet),'LineWidth',1.5);
+plot(tt,fr(2,1:sizet)*-1,'LineWidth',1.5);
 xlim([0,lim2])
 % ylabel('$f_2/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 

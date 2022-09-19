@@ -96,7 +96,7 @@ f.Renderer = 'painters';
 subplot(2, 1, 1)
 grid on
 hold on
-plot(tt,fl(2,1:sizet),'LineWidth',1.5,'Color',red);
+plot(tt,fl(2,1:sizet)*-1,'LineWidth',1.5,'Color',red);
 xlabel('$t/\mathrm{s}$', 'Interpreter', 'latex', 'FontSize', 12)
 % xlim([1.8,4])
 ylabel('$f_1/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
@@ -104,7 +104,7 @@ ylabel('$f_1/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 subplot(2, 1, 2)
 grid on
 hold on
-plot(tt,fr(2,1:sizet),'LineWidth',1.5);
+plot(tt,fr(2,1:sizet)*-1,'LineWidth',1.5);
 xlabel('$t/\mathrm{s}$', 'Interpreter', 'latex', 'FontSize', 12)
 % xlim([1.8,4])
 ylabel('$f_2/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
@@ -157,14 +157,14 @@ f.Renderer = 'painters';
 subplot(2,2,1);
 grid on
 hold on
-plot(tt,fl(2,1:sizet),'LineWidth',1.5,'Color',red);
+plot(tt,fl(2,1:sizet)*-1,'LineWidth',1.5,'Color',red);
 ylabel('$f/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 legend('left arm','Interpreter', 'latex', 'FontSize', 10)
 
 subplot(2,2,2);
 grid on
 hold on
-plot(tt,fr(2,1:sizet),'LineWidth',1.5);
+plot(tt,fr(2,1:sizet)*-1,'LineWidth',1.5);
 % ylabel('$f_2/\mathrm{N}$', 'Interpreter', 'latex', 'FontSize', 12)
 legend('right arm','Interpreter', 'latex', 'FontSize', 10)
 
