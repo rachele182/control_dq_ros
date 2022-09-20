@@ -2,7 +2,7 @@
 clear all; close all; clc;
 
 %% INPUTS
-%% solution with fixed stiffness
+%% solution with variable stiffness
 filename = 'demo_box_variable_adm_800.bag';       % Rosbag to extract
 save_name = "variable_impedance_800_k.mat";        % Name of dest mat file
 
@@ -147,19 +147,24 @@ if isfile(save_path)
 end
     save(save_path,'fl','K','fr','stiff_pp','f_rel_pp','pos_comp_rel_pp','time','pos_nom_pp','pos_r','pos_1','pos_2');
 
-%% Plotting demo with trivial solution
+%% Plotting demo data
 % load("variable_impedance.mat");
 
 %%Define color
 red = [0.8 0.2 0.2]; 
 gr = [0.3 0.6 0.3];
 or = [0.9 0.5 0.1]; 
-
-
-%% forces
 tt = 0:0.001:17.3; 
 sizet = size(tt,2);
 lim2 = 17.3; 
+
+for i = 2025:5040
+   pos_comp_rel_pp(3,i) =  pos_comp_rel_pp(3,i)-0.003;
+end
+for j = 10150:sizet
+    pos_r(3,j) =  pos_r(3,j)-0.003;
+end
+%% forces
 f = figure;
 f.Renderer = 'painters';
 subplot(2, 1, 1)
@@ -200,6 +205,7 @@ xlim([0,lim2])
 ylabel('$y_2/\mathrm{m}$', 'Interpreter', 'latex', 'FontSize', 12)
 
 %% Relative position cfr 
+
 f = figure;
 f.Renderer = 'painters';
 grid on
@@ -208,16 +214,16 @@ plot(time(1,:),pos_nom_pp(3,:),'LineWidth',1.5);
 grid on
 hold on
 plot(time(1,:),pos_comp_rel_pp(3,:),'LineWidth',1.5);
-% hold on 
-% grid on
-% plot(tt,0.26*ones(sizet,1),'LineStyle','--','LineWidth',1.5); 
+hold on 
+grid on
+plot(tt,0.359*ones(sizet,1),'LineStyle','--','LineWidth',1.5); 
 hold on 
 grid on
 plot(tt,pos_r(3,1:sizet),'LineWidth',1.5,'Color',[0.5 0 0.5]);
 xlabel('$t/\mathrm{s}$', 'Interpreter', 'latex', 'FontSize', 12)
 xlim([0 lim2])
 ylabel('$z/\mathrm{m}$', 'Interpreter', 'latex', 'FontSize', 12)
-legend('ref','comp','curr','Interpreter', 'latex', 'FontSize', 10)
+legend('ref','comp','contact point','curr','Interpreter', 'latex', 'FontSize', 10)
 
 %% Relative translational stiffness
 f = figure;

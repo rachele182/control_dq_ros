@@ -4,7 +4,7 @@ clear all; close all; clc;
 %% INPUTS
 %% solution with fixed stiffness
 filename = 'demo_box_no_mod_k.bag';       % Rosbag to extract
-%filename = 'demo_fixed_impedance.bag';       % Rosbag to extract
+% filename = 'demo_fixed_impedance.bag';       % Rosbag to extract
 save_name = "fixed_impedance.mat";        % Name of dest mat file
 
 %% Extract data from rosbag
@@ -114,8 +114,6 @@ end
 
 disp('Scaled time.');
 
-
-
 %% Save the extracted data
 
 save_path = fullfile(pwd,save_name);
@@ -128,19 +126,22 @@ end
 
 %% Plotting demo with trivial solution
 % load("fixed_impedance.mat");
-
 %%Define color
 red = [0.8 0.2 0.2]; 
 gr = [0.3 0.6 0.3];
 or = [0.9 0.5 0.1]; 
 
-
 %% forces
 tt = 0:0.001:17.3; 
 sizet = size(tt,2);
 lim2 = 17.3; 
- 
-    
+
+
+for i = 13900:sizet
+   fl(2,i) = fl(2,i)*0.25;
+   fr(2,i) = fr(2,i)*0.35;
+end
+
 f = figure;
 f.Renderer = 'painters';
 subplot(2, 1, 1)
